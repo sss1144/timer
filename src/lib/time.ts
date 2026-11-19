@@ -49,3 +49,23 @@ export function formatTime(isoTime: string): string {
   const d = new Date(isoTime);
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
+
+/** 日付（YYYY-MM-DD）と時刻（HH:mm）から日時を作る */
+export function combineDateTime(dateKey: string, time: string): Date {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const [hh, mm] = time.split(':').map(Number);
+  return new Date(y, m - 1, d, hh, mm);
+}
+
+/** 入力欄の値から開始・終了の日時を作る。終了が開始以前なら翌日の時刻とみなす（日付をまたぐ作業） */
+export function spanFromInputs(dateKey: string, startTime: string, endTime: string): { start: Date; end: Date; nextDay: boolean } | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || !/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime)) return null;
+  const start = combineDateTime(dateKey, startTime);
+  const end = combineDateTime(dateKey, endTime);
+  const nextDay = end <= start;
+  if (nextDay) end.setDate(end.getDate() + 1);
+  return { start, end, nextDay };
+}
+
+/** 日時を入力欄用の「HH:mm」にする */
+export const toTimeInput = (date: Date) => `${pad(date.getHours())}:${pad(date.getMinutes())}`;

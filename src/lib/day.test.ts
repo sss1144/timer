@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dayRange, dayStart, isWithin } from './day';
+import { dayKeyOf, dayRange, dayStart, isWithin, rangeOfDayKey, shiftDayKey } from './day';
 import { toIsoLocal } from './time';
 
 const d = (y: number, m: number, day: number, h = 0, min = 0) => new Date(y, m - 1, day, h, min);
@@ -26,5 +26,19 @@ describe('dayRange / isWithin', () => {
     expect(isWithin(toIsoLocal(d(2026, 11, 20, 3, 59)), range)).toBe(true);
     expect(isWithin(toIsoLocal(d(2026, 11, 20, 4, 0)), range)).toBe(false);
     expect(isWithin(toIsoLocal(d(2026, 11, 19, 3, 59)), range)).toBe(false);
+  });
+});
+
+describe('dayKeyOf / rangeOfDayKey / shiftDayKey', () => {
+  it('区切り時刻を考えて日付を決める', () => {
+    expect(dayKeyOf(d(2026, 11, 20, 2), 0)).toBe('2026-11-20');
+    expect(dayKeyOf(d(2026, 11, 20, 2), 4)).toBe('2026-11-19');
+  });
+  it('日付から範囲を作る', () => {
+    expect(rangeOfDayKey('2026-11-19', 4)).toEqual({ start: d(2026, 11, 19, 4), end: d(2026, 11, 20, 4) });
+  });
+  it('前後の日へ移動（月・年をまたぐ）', () => {
+    expect(shiftDayKey('2026-11-30', 1)).toBe('2026-12-01');
+    expect(shiftDayKey('2027-01-01', -1)).toBe('2026-12-31');
   });
 });

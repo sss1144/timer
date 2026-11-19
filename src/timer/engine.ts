@@ -5,7 +5,7 @@
  * - 関数はすべて新しい状態を返し、渡された状態は書き換えない。
  * - now はミリ秒（Date.now() の値）。 */
 
-import type { ActiveTimer, Session, Settings } from '../db/types';
+import { LIMITS, type ActiveTimer, type Session, type Settings } from '../db/types';
 import { toIsoLocal } from '../lib/time';
 
 export type TimerSettings = Pick<
@@ -14,7 +14,7 @@ export type TimerSettings = Pick<
 >;
 
 /** これより短い記録は保存しない */
-export const MIN_RECORD_SEC = 60;
+export const MIN_RECORD_SEC = LIMITS.minRecordSec;
 /** 終了予定からこの時間以内に気づいた場合を「その場で終わった」とみなす（音・通知・連続モード） */
 export const LIVE_GRACE_MS = 60_000;
 

@@ -153,3 +153,52 @@ export async function updateSessionNote(id: string, note: string): Promise<void>
     await db.sessions.put({ ...current, note: cleanText(note, LIMITS.note), updatedAt: nowIso() });
   });
 }
+
+export type SessionInput = Pick<Session, 'taskId' | 'type' | 'startAt' | 'endAt' | 'durationSec' | 'completed' | 'note'>;
+
+/** 手動追加・編集の入力を確かめる。作業時間は開始〜終了の長さ以下（一時停止を除くと短くなる） */
+export function validateSession(input: SessionInput): SessionInput {
+  const start = new Date(input.startAt).getTime();
+  const end = new Date(input.endAt).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end)) throw new ValidationError('日時を正しく入力してください');
+  if (end <= start) throw new ValidationError('終了は開始より後にしてください');
+  if (end - start > LIMITS.maxRecordSec * 1000) throw new ValidationError('1件の記録は24時間までです');
+  const durationSec = Math.round(input.durationSec);
+  if (!Number.isFinite(durationSec) || durationSec < LIMITS.minRecordSec) throw new ValidationError('1分未満の記録は保存できません');
+  if (durationSec * 1000 > end - start + 1000) throw new ValidationError('作業時間が、開始から終了までの時間より長くなっています');
+  return {
+    taskId: input.taskId || null,
+    type: input.type,
+    startAt: input.startAt,
+    endAt: input.endAt,
+    durationSec,
+    completed: input.type === 'pomodoro' && input.completed,
+    note: cleanText(input.note, LIMITS.note),
+  };
+}
+
+export async function createSession(input: SessionInput): Promise<Session> {
+  const now = nowIso();
+  const session: Session = { id: crypto.randomUUID(), ...validateSession(input), deleted: false, createdAt: now, updatedAt: now };
+  await db.sessions.add(session);
+  return session;
+}
+
+export async function updateSession(id: string, input: SessionInput): Promise<Session> {
+  return db.transaction('rw', db.sessions, async () => {
+    const current = await db.sessions.get(id);
+    if (!current) throw new ValidationError('記録が見つかりません');
+    const next: Session = { ...current, ...validateSession(input), updatedAt: nowIso() };
+    await db.sessions.put(next);
+    return next;
+  });
+}
+
+/** 削除済みの印を付ける */
+export async function deleteSession(id: string): Promise<void> {
+  await db.transaction('rw', db.sessions, async () => {
+    const current = await db.sessions.get(id);
+    if (!current) return;
+    await db.sessions.put({ ...current, deleted: true, updatedAt: nowIso() });
+  });
+}

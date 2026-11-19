@@ -5,11 +5,14 @@ import {
   cleanDueDate,
   cleanEstimate,
   createProject,
+  createSession,
   createTask,
+  deleteSession,
   deleteTask,
   getSettings,
   setTaskDone,
   updateProject,
+  updateSession,
   updateSettings,
   updateTask,
   ValidationError,
@@ -114,5 +117,37 @@ describe('設定', () => {
     expect(await getSettings()).toEqual(DEFAULT_SETTINGS);
     await updateSettings({ workMin: 50 });
     expect(await getSettings()).toEqual({ ...DEFAULT_SETTINGS, workMin: 50 });
+  });
+});
+
+describe('記録の手動追加・編集・削除', () => {
+  const input = {
+    taskId: null, type: 'manual' as const, startAt: '2026-11-19T20:00:00.000+09:00', endAt: '2026-11-19T20:30:00.000+09:00',
+    durationSec: 1800, completed: true, note: ' 模写 ',
+  };
+
+  it('追加できる。手動の記録は完了ポモドーロにしない', async () => {
+    const s = await createSession(input);
+    expect(s).toMatchObject({ type: 'manual', durationSec: 1800, completed: false, note: '模写', deleted: false });
+  });
+
+  it('おかしな入力は保存しない', async () => {
+    await expect(createSession({ ...input, endAt: input.startAt })).rejects.toThrow('終了は開始より後');
+    await expect(createSession({ ...input, durationSec: 59 })).rejects.toThrow('1分未満');
+    await expect(createSession({ ...input, durationSec: 3600 })).rejects.toThrow('作業時間が');
+    await expect(createSession({ ...input, endAt: '2026-11-21T20:00:00.000+09:00' })).rejects.toThrow('24時間');
+  });
+
+  it('日付をまたぐ記録も保存できる', async () => {
+    const s = await createSession({ ...input, startAt: '2026-11-19T23:30:00.000+09:00', endAt: '2026-11-20T00:45:00.000+09:00', durationSec: 4500 });
+    expect(s.durationSec).toBe(4500);
+  });
+
+  it('すべての項目を編集でき、削除は印を付けるだけ', async () => {
+    const s = await createSession(input);
+    const edited = await updateSession(s.id, { ...input, type: 'pomodoro', completed: true, durationSec: 1500, taskId: 't1', note: '' });
+    expect(edited).toMatchObject({ id: s.id, type: 'pomodoro', completed: true, durationSec: 1500, taskId: 't1', note: '', createdAt: s.createdAt });
+    await deleteSession(s.id);
+    expect((await db.sessions.get(s.id))?.deleted).toBe(true);
   });
 });

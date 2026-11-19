@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatClock, formatDateKey, formatDuration, toDateKey, toIsoLocal } from './time';
+import { formatClock, formatDateKey, formatDuration, spanFromInputs, toDateKey, toIsoLocal } from './time';
 
 describe('toIsoLocal', () => {
   it('時差付きの ISO 8601 で、元の時刻に戻せる', () => {
@@ -40,5 +40,22 @@ describe('formatClock', () => {
   it('残り時間は切り上げる（24:59.2 → 25:00）', () => {
     expect(formatClock(1_499_200, true)).toBe('25:00');
     expect(formatClock(1_499_200)).toBe('24:59');
+  });
+});
+
+describe('spanFromInputs', () => {
+  it('同じ日の開始と終了', () => {
+    const r = spanFromInputs('2026-11-19', '20:00', '20:25')!;
+    expect(r.start).toEqual(new Date(2026, 10, 19, 20, 0));
+    expect(r.end).toEqual(new Date(2026, 10, 19, 20, 25));
+    expect(r.nextDay).toBe(false);
+  });
+  it('終了が開始より前なら翌日', () => {
+    const r = spanFromInputs('2026-11-30', '23:30', '00:45')!;
+    expect(r.end).toEqual(new Date(2026, 11, 1, 0, 45));
+    expect(r.nextDay).toBe(true);
+  });
+  it('入力が足りなければ null', () => {
+    expect(spanFromInputs('2026-11-19', '', '20:25')).toBeNull();
   });
 });

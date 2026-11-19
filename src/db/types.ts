@@ -128,4 +128,8 @@ export const LIMITS = {
   taskTitle: 60,
   note: 500,
   maxEstimate: 99,
+  /** これより短い記録は保存しない（秒） */
+  minRecordSec: 60,
+  /** 1 件の記録の最大の長さ（秒） */
+  maxRecordSec: 24 * 3600,
 } as const;

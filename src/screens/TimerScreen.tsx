@@ -3,9 +3,9 @@ import { useActiveTimer, useProjects, useSessions, useSettings, useTasks } from 
 import { listProjects } from '../db/queries';
 import { updateSessionNote } from '../db/repo';
 import { LIMITS, type ActiveTimer, type Project, type Session, type Settings, type Task } from '../db/types';
-import { dayRange, isWithin } from '../lib/day';
+import { dayKeyOf, dayRange, isWithin } from '../lib/day';
 import { useStore } from '../lib/store';
-import { formatClock, formatDuration, formatTime } from '../lib/time';
+import { formatClock, formatDateKey, formatDuration, formatTime } from '../lib/time';
 import { Dialog } from '../components/Dialog';
 import * as actions from '../timer/actions';
 import { unlockAudio } from '../timer/alarm';
@@ -338,8 +338,10 @@ function TodaySummary({ sessions, timer, now, settings }: { sessions: Session[];
   const today = sessions.filter(s => !s.deleted && isWithin(s.startAt, range));
   let totalSec = today.reduce((sum, s) => sum + s.durationSec, 0);
   const pomodoros = today.filter(s => s.type === 'pomodoro' && s.completed).length;
-  // 計測中の作業も含める
-  if (timer.startedAt && isRecording(timer)) {
+  // 計測中の作業も含める（記録と同じく、開始した日に数える）
+  const measuring = !!timer.startedAt && isRecording(timer);
+  const startedEarlier = measuring && !isWithin(timer.startedAt!, range);
+  if (measuring && !startedEarlier) {
     const live = timer.mode === 'pomodoro' ? Math.min(elapsedMs(timer, now), timer.phaseDurationSec * 1000) : elapsedMs(timer, now);
     totalSec += Math.floor(live / 1000);
   }
@@ -353,6 +355,11 @@ function TodaySummary({ sessions, timer, now, settings }: { sessions: Session[];
         <span className="muted">完了ポモドーロ</span>
         <strong className="today-total">🍅 {pomodoros}</strong>
       </div>
+      {startedEarlier && (
+        <p className="today-note">
+          計測中の作業は、開始した日（{formatDateKey(dayKeyOf(new Date(timer.startedAt!), settings.dayBoundaryHour))}）に数えます
+        </p>
+      )}
     </section>
   );
 }

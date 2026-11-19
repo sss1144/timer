@@ -18,3 +18,22 @@ export function isWithin(isoTime: string, range: { start: Date; end: Date }): bo
   const t = new Date(isoTime).getTime();
   return t >= range.start.getTime() && t < range.end.getTime();
 }
+
+/** その時刻が属する日の YYYY-MM-DD（日付の区切り時刻を考える） */
+export function dayKeyOf(at: Date, boundaryHour: number): string {
+  const s = dayStart(at, boundaryHour);
+  return `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, '0')}-${String(s.getDate()).padStart(2, '0')}`;
+}
+
+/** YYYY-MM-DD の日の範囲 */
+export function rangeOfDayKey(key: string, boundaryHour: number): { start: Date; end: Date } {
+  const [y, m, d] = key.split('-').map(Number);
+  return dayRange(new Date(y, m - 1, d, boundaryHour), boundaryHour);
+}
+
+/** YYYY-MM-DD を n 日ずらす */
+export function shiftDayKey(key: string, days: number): string {
+  const [y, m, d] = key.split('-').map(Number);
+  const date = new Date(y, m - 1, d + days);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}

@@ -78,3 +78,40 @@ export function dueStatus(dueDate: string | null, today: string): 'none' | 'over
   if (dueDate < today) return 'overdue';
   return dueDate === today ? 'today' : 'future';
 }
+
+const msOf = (iso: string) => new Date(iso).getTime();
+
+/** 範囲内に開始した記録（削除済みを除く）を時刻順に */
+export function sessionsInRange(sessions: Session[], range: { start: Date; end: Date }): Session[] {
+  const from = range.start.getTime();
+  const to = range.end.getTime();
+  return sessions
+    .filter(s => !s.deleted && msOf(s.startAt) >= from && msOf(s.startAt) < to)
+    .sort((a, b) => msOf(a.startAt) - msOf(b.startAt));
+}
+
+/** 時間が重なる記録（自分自身と削除済みは除く）。終了と開始がちょうど同じ時刻なら重なりとしない */
+export function findOverlaps(sessions: Session[], candidate: { id?: string; startAt: string; endAt: string }): Session[] {
+  const start = msOf(candidate.startAt);
+  const end = msOf(candidate.endAt);
+  return sessions
+    .filter(s => !s.deleted && s.id !== candidate.id && msOf(s.startAt) < end && msOf(s.endAt) > start)
+    .sort((a, b) => msOf(a.startAt) - msOf(b.startAt));
+}
+
+export const SESSION_TYPE_LABEL: Record<Session['type'], string> = {
+  pomodoro: 'ポモドーロ',
+  stopwatch: 'ストップウォッチ',
+  manual: '手動',
+};
+
+export type TaskLabel = { title: string; project: Project | null; color: string; missing: boolean };
+
+/** 記録に表示するタスク名とプロジェクト（未分類・削除済みタスクも表す） */
+export function describeTask(taskId: string | null, tasks: Task[], projects: Project[]): TaskLabel {
+  if (!taskId) return { title: '未分類', project: null, color: 'var(--muted)', missing: false };
+  const task = tasks.find(t => t.id === taskId);
+  if (!task || task.deleted) return { title: '削除済みタスク', project: null, color: 'var(--muted)', missing: true };
+  const project = task.projectId ? projects.find(p => p.id === task.projectId && !p.deleted) ?? null : null;
+  return { title: task.title, project, color: project?.color ?? 'var(--muted)', missing: false };
+}

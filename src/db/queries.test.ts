@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dueStatus, filterTasks, groupByProject, listProjects, sortTasks, summarizeByTask } from './queries';
+import { dueStatus, filterTasks, findOverlaps, groupByProject, listProjects, sessionsInRange, sortTasks, summarizeByTask } from './queries';
 import type { Project, Session, Task } from './types';
 
 const project = (id: string, extra: Partial<Project> = {}): Project => ({
@@ -92,5 +92,42 @@ describe('dueStatus', () => {
     expect(dueStatus('2026-11-18', '2026-11-19')).toBe('overdue');
     expect(dueStatus('2026-11-19', '2026-11-19')).toBe('today');
     expect(dueStatus('2026-11-20', '2026-11-19')).toBe('future');
+  });
+});
+
+describe('sessionsInRange', () => {
+  it('範囲内に開始した記録を時刻順に。削除済みは除く。日をまたぐ記録は開始した日に入る', () => {
+    const range = { start: new Date('2026-11-19T00:00:00+09:00'), end: new Date('2026-11-20T00:00:00+09:00') };
+    const list = sessionsInRange(
+      [
+        session('a', { id: 'late', startAt: '2026-11-19T23:30:00.000+09:00', endAt: '2026-11-20T00:45:00.000+09:00' }),
+        session('a', { id: 'early', startAt: '2026-11-19T09:00:00.000+09:00', endAt: '2026-11-19T09:25:00.000+09:00' }),
+        session('a', { id: 'deleted', startAt: '2026-11-19T10:00:00.000+09:00', endAt: '2026-11-19T10:25:00.000+09:00', deleted: true }),
+        session('a', { id: 'next', startAt: '2026-11-20T00:10:00.000+09:00', endAt: '2026-11-20T00:35:00.000+09:00' }),
+      ],
+      range,
+    );
+    expect(list.map(s => s.id)).toEqual(['early', 'late']);
+  });
+});
+
+describe('findOverlaps', () => {
+  const base = [
+    session('a', { id: 's1', startAt: '2026-11-19T20:00:00.000+09:00', endAt: '2026-11-19T20:25:00.000+09:00' }),
+    session('a', { id: 's2', startAt: '2026-11-19T21:00:00.000+09:00', endAt: '2026-11-19T22:00:00.000+09:00' }),
+    session('a', { id: 's3', startAt: '2026-11-19T20:10:00.000+09:00', endAt: '2026-11-19T20:20:00.000+09:00', deleted: true }),
+  ];
+  const ids = (xs: Session[]) => xs.map(s => s.id);
+  it('一部でも重なれば警告の対象', () => {
+    expect(ids(findOverlaps(base, { startAt: '2026-11-19T20:20:00.000+09:00', endAt: '2026-11-19T21:10:00.000+09:00' }))).toEqual(['s1', 's2']);
+  });
+  it('ちょうど続く記録は重ならない', () => {
+    expect(findOverlaps(base, { startAt: '2026-11-19T20:25:00.000+09:00', endAt: '2026-11-19T21:00:00.000+09:00' })).toEqual([]);
+  });
+  it('編集中の記録自身は除く', () => {
+    expect(findOverlaps(base, { id: 's1', startAt: '2026-11-19T20:00:00.000+09:00', endAt: '2026-11-19T20:30:00.000+09:00' })).toEqual([]);
+  });
+  it('時差の違う書き方でも正しく比べる', () => {
+    expect(ids(findOverlaps(base, { startAt: '2026-11-19T11:05:00.000Z', endAt: '2026-11-19T11:15:00.000Z' }))).toEqual(['s1']);
   });
 });
