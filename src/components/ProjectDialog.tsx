@@ -2,6 +2,9 @@ import { useState, type FormEvent } from 'react';
 import { Dialog } from './Dialog';
 import { createProject, updateProject, ValidationError } from '../db/repo';
 import { LIMITS, PROJECT_COLORS, type Project } from '../db/types';
+import { displayColor } from '../lib/colors';
+
+const COLOR_NAMES = ['青', 'オレンジ', 'アクア', '黄', 'ピンク', '緑', '紫', '赤'];
 
 type Props = {
   /** 編集するプロジェクト。なければ新規作成 */
@@ -42,12 +45,12 @@ export function ProjectDialog({ project, defaultColor, onClose }: Props) {
         </label>
 
         <fieldset className="form-field">
-          <legend>色</legend>
+          <legend>色（グラフで見分けやすい 8 色。左から順に使うのがおすすめです）</legend>
           <div className="swatches">
-            {PROJECT_COLORS.map(c => (
-              <label key={c} className="swatch" style={{ background: c }} title={c}>
+            {PROJECT_COLORS.map((c, i) => (
+              <label key={c} className="swatch" style={{ background: displayColor(c) }} title={COLOR_NAMES[i]}>
                 <input type="radio" name="color" value={c} checked={color === c} onChange={() => setColor(c)} />
-                <span className="visually-hidden">{c}</span>
+                <span className="visually-hidden">{COLOR_NAMES[i]}</span>
               </label>
             ))}
             <label className="swatch custom" title="ほかの色">

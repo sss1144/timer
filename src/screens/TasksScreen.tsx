@@ -16,6 +16,7 @@ import { PROJECT_COLORS, type Project, type Task } from '../db/types';
 import { ProjectDialog } from '../components/ProjectDialog';
 import { TaskDialog } from '../components/TaskDialog';
 import { formatDateKey, formatDuration, toDateKey } from '../lib/time';
+import { displayColor } from '../lib/colors';
 import * as timerActions from '../timer/actions';
 import { unlockAudio } from '../timer/alarm';
 import { getStatus } from '../timer/engine';
@@ -123,7 +124,7 @@ export function TasksScreen() {
               <section key={g.project?.id ?? 'none'} className="card task-group">
                 {effectiveFilter === 'all' && (
                   <h2>
-                    <span className="dot" style={{ background: g.project?.color ?? 'var(--muted)' }} />
+                    <span className="dot" style={{ background: displayColor(g.project?.color) }} />
                     {g.project?.name ?? 'プロジェクトなし'}
                     {g.project?.archived && <span className="badge">アーカイブ済み</span>}
                     <span className="count">{g.tasks.length}</span>
@@ -282,7 +283,7 @@ function ProjectList({
         return (
           <li key={p.id}>
             <button className="project-row" onClick={() => onEdit(p)}>
-              <span className="dot lg" style={{ background: p.color }} />
+              <span className="dot lg" style={{ background: displayColor(p.color) }} />
               <span className="project-name">{p.name}</span>
               <span className="project-meta">
                 未完了 {s.open} 件 ・ 合計 {s.totalSec > 0 ? formatDuration(s.totalSec) : '0分'}

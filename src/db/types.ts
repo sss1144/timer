@@ -109,19 +109,9 @@ export const IDLE_TIMER: ActiveTimer = {
   checkedElapsedSec: 0,
 };
 
-/** プロジェクトの色の候補（ライト・ダークどちらでも見やすい色） */
-export const PROJECT_COLORS = [
-  '#4f7cff',
-  '#ff7a59',
-  '#22a565',
-  '#f5b700',
-  '#9a55f5',
-  '#00b8d9',
-  '#ff5c8a',
-  '#14b8a6',
-  '#a1785c',
-  '#64748b',
-] as const;
+/** プロジェクトの色の候補（グラフ用に色覚の違いも含めて見分けやすさを確かめた 8 色。この順に割り当てる）。
+ * ダークモードでは同じ色相の、暗い背景用の段階で表示する（src/lib/colors.ts） */
+export const PROJECT_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'] as const;
 
 export const LIMITS = {
   projectName: 30,

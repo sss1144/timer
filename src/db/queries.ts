@@ -1,3 +1,4 @@
+import { displayColor, NEUTRAL_COLOR } from '../lib/colors';
 import type { Project, Session, Task } from './types';
 
 export type TaskSummary = { totalSec: number; completedPomodoros: number };
@@ -109,9 +110,9 @@ export type TaskLabel = { title: string; project: Project | null; color: string;
 
 /** 記録に表示するタスク名とプロジェクト（未分類・削除済みタスクも表す） */
 export function describeTask(taskId: string | null, tasks: Task[], projects: Project[]): TaskLabel {
-  if (!taskId) return { title: '未分類', project: null, color: 'var(--muted)', missing: false };
+  if (!taskId) return { title: '未分類', project: null, color: NEUTRAL_COLOR, missing: false };
   const task = tasks.find(t => t.id === taskId);
-  if (!task || task.deleted) return { title: '削除済みタスク', project: null, color: 'var(--muted)', missing: true };
+  if (!task || task.deleted) return { title: '削除済みタスク', project: null, color: NEUTRAL_COLOR, missing: true };
   const project = task.projectId ? projects.find(p => p.id === task.projectId && !p.deleted) ?? null : null;
-  return { title: task.title, project, color: project?.color ?? 'var(--muted)', missing: false };
+  return { title: task.title, project, color: displayColor(project?.color), missing: false };
 }
