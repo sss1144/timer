@@ -1,7 +1,10 @@
 import { useEffect, type ComponentType } from 'react';
 import { useRoute, type Route } from './lib/route';
-import { Nav, ROUTE_LABEL } from './components/Nav';
+import { Nav } from './components/Nav';
 import { InstallHint } from './components/InstallHint';
+import { MiniTimer } from './components/MiniTimer';
+import { Toast } from './components/Toast';
+import { TimerRunner } from './timer/TimerRunner';
 import { TimerScreen } from './screens/TimerScreen';
 import { TasksScreen } from './screens/TasksScreen';
 import { RecordsScreen } from './screens/RecordsScreen';
@@ -21,7 +24,6 @@ export default function App() {
   const Screen = SCREENS[route];
 
   useEffect(() => {
-    document.title = route === 'timer' ? '作業記録タイマー' : `${ROUTE_LABEL[route]} | 作業記録タイマー`;
     window.scrollTo(0, 0);
   }, [route]);
 
@@ -30,8 +32,11 @@ export default function App() {
       <Nav current={route} />
       <main className="content">
         <InstallHint />
+        {route !== 'timer' && <MiniTimer />}
         <Screen />
       </main>
+      <TimerRunner route={route} />
+      <Toast />
     </div>
   );
 }

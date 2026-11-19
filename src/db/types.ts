@@ -47,6 +47,8 @@ export type Session = {
   updatedAt: string;
 };
 
+export type AlarmSound = 'chime' | 'bell' | 'beep';
+
 export type Settings = {
   workMin: number;
   shortBreakMin: number;
@@ -55,6 +57,7 @@ export type Settings = {
   autoContinue: boolean;
   stopwatchCheckMin: number;
   sound: boolean;
+  alarmSound: AlarmSound;
   notification: boolean;
   weekStart: 'mon' | 'sun';
   dayBoundaryHour: number;
@@ -69,26 +72,41 @@ export const DEFAULT_SETTINGS: Settings = {
   autoContinue: false,
   stopwatchCheckMin: 180,
   sound: true,
+  alarmSound: 'chime',
   notification: false,
   weekStart: 'mon',
   dayBoundaryHour: 0,
   lastBackupAt: null,
 };
 
-/** 実行中タイマー（再読み込みしても復帰できるよう保存する） */
+/** タイマーの状態（再読み込みしても復帰できるよう保存する）。
+ * 時間は「開始時刻と現在時刻の差 − 一時停止していた時間」で計算する。 */
 export type ActiveTimer = {
   mode: 'pomodoro' | 'stopwatch';
   phase: 'work' | 'shortBreak' | 'longBreak';
   taskId: string | null;
-  startedAt: string;
+  /** null = まだ開始していない（待機中） */
+  startedAt: string | null;
   pausedAt: string | null;
   pausedTotalSec: number;
-  /** 長い休憩までの回数 */
+  /** 完了したポモドーロの数（長い休憩のタイミングに使う） */
   pomodoroCount: number;
-  /** 実行中フェーズの長さ（ストップウォッチは 0） */
+  /** 実行中フェーズの長さ。開始時の設定で固定する（ストップウォッチは 0） */
   phaseDurationSec: number;
-  /** ストップウォッチの止め忘れ確認を最後に出した時刻 */
-  lastCheckAt: string | null;
+  /** ストップウォッチの止め忘れ確認で「続ける」を選んだ時点の経過秒数 */
+  checkedElapsedSec: number;
+};
+
+export const IDLE_TIMER: ActiveTimer = {
+  mode: 'pomodoro',
+  phase: 'work',
+  taskId: null,
+  startedAt: null,
+  pausedAt: null,
+  pausedTotalSec: 0,
+  pomodoroCount: 0,
+  phaseDurationSec: 0,
+  checkedElapsedSec: 0,
 };
 
 /** プロジェクトの色の候補（ライト・ダークどちらでも見やすい色） */

@@ -34,3 +34,18 @@ export function formatDateKey(key: string): string {
   const date = new Date(y, m - 1, d);
   return `${m}/${d}(${'日月火水木金土'[date.getDay()]})`;
 }
+
+/** タイマー表示用「25:00」「1:02:03」。roundUp = true なら秒を切り上げる（残り時間用） */
+export function formatClock(ms: number, roundUp = false): string {
+  const total = Math.max(0, roundUp ? Math.ceil(ms / 1000) : Math.floor(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return h ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+}
+
+/** ISO 文字列を「20:05」の形にする */
+export function formatTime(isoTime: string): string {
+  const d = new Date(isoTime);
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}

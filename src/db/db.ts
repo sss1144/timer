@@ -4,7 +4,7 @@ import type { ActiveTimer, Project, Session, Settings, Task } from './types';
 /** 設定と実行中タイマーのように 1 件だけ持つデータの置き場所 */
 export type KvRow =
   | { key: 'settings'; value: Settings }
-  | { key: 'activeTimer'; value: ActiveTimer | null };
+  | { key: 'activeTimer'; value: ActiveTimer };
 
 export class AppDB extends Dexie {
   projects!: Table<Project, string>;

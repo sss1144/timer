@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDateKey, formatDuration, toDateKey, toIsoLocal } from './time';
+import { formatClock, formatDateKey, formatDuration, toDateKey, toIsoLocal } from './time';
 
 describe('toIsoLocal', () => {
   it('時差付きの ISO 8601 で、元の時刻に戻せる', () => {
@@ -28,5 +28,17 @@ describe('formatDuration', () => {
 describe('formatDateKey', () => {
   it('月/日(曜日)', () => {
     expect(formatDateKey('2026-11-19')).toBe('11/19(木)');
+  });
+});
+
+describe('formatClock', () => {
+  it('分:秒、1 時間以上は 時:分:秒', () => {
+    expect(formatClock(25 * 60_000)).toBe('25:00');
+    expect(formatClock(3_723_000)).toBe('1:02:03');
+    expect(formatClock(-5)).toBe('00:00');
+  });
+  it('残り時間は切り上げる（24:59.2 → 25:00）', () => {
+    expect(formatClock(1_499_200, true)).toBe('25:00');
+    expect(formatClock(1_499_200)).toBe('24:59');
   });
 });

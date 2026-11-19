@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { useProjects, useSessions, useTasks } from '../db/hooks';
+import { useActiveTimer, useProjects, useSessions, useSettings, useTasks } from '../db/hooks';
 import {
   dueStatus,
   filterTasks,
@@ -16,6 +16,10 @@ import { PROJECT_COLORS, type Project, type Task } from '../db/types';
 import { ProjectDialog } from '../components/ProjectDialog';
 import { TaskDialog } from '../components/TaskDialog';
 import { formatDateKey, formatDuration, toDateKey } from '../lib/time';
+import * as timerActions from '../timer/actions';
+import { unlockAudio } from '../timer/alarm';
+import { getStatus } from '../timer/engine';
+import { handleResult, showToast } from '../timer/ui';
 
 type View = 'tasks' | 'projects';
 type Editing =
@@ -35,6 +39,20 @@ export function TasksScreen() {
   const [editing, setEditing] = useState<Editing>(null);
 
   const summaries = useMemo(() => summarizeByTask(sessions ?? []), [sessions]);
+  const timer = useActiveTimer();
+  const settings = useSettings();
+  const timerBusy = !!timer && getStatus(timer) !== 'idle';
+
+  /** タスク一覧からそのままタイマーを開始する */
+  const startTask = async (task: Task) => {
+    if (timerBusy) {
+      showToast('タイマーが動いています。止めてから開始してください');
+    } else {
+      unlockAudio();
+      handleResult(await timerActions.startWithTask(task.id), settings);
+    }
+    window.location.hash = '#/';
+  };
 
   if (!projects || !tasks || !sessions) return <ScreenHeader />;
 
@@ -113,7 +131,14 @@ export function TasksScreen() {
                 )}
                 <ul className="task-list">
                   {g.tasks.map(t => (
-                    <TaskRow key={t.id} task={t} summary={summaries.get(t.id)} onEdit={() => setEditing({ kind: 'task', task: t })} />
+                    <TaskRow
+                      key={t.id}
+                      task={t}
+                      summary={summaries.get(t.id)}
+                      running={timerBusy && timer?.taskId === t.id}
+                      onEdit={() => setEditing({ kind: 'task', task: t })}
+                      onStart={() => void startTask(t)}
+                    />
                   ))}
                 </ul>
               </section>
@@ -146,7 +171,8 @@ function ScreenHeader({ children }: { children?: ReactNode }) {
   );
 }
 
-function TaskRow({ task, summary, onEdit }: { task: Task; summary?: TaskSummary; onEdit: () => void }) {
+function TaskRow(props: { task: Task; summary?: TaskSummary; running: boolean; onEdit: () => void; onStart: () => void }) {
+  const { task, summary, running, onEdit, onStart } = props;
   const due = dueStatus(task.dueDate, toDateKey(new Date()));
   const done = summary?.completedPomodoros ?? 0;
   const total = summary?.totalSec ?? 0;
@@ -171,7 +197,7 @@ function TaskRow({ task, summary, onEdit }: { task: Task; summary?: TaskSummary;
             🍅 {done}
             {task.estimatedPomodoros ? ` / ${task.estimatedPomodoros}` : ''}
           </span>
-          <span title="合計作業時間">⏱ {total > 0 ? formatDuration(total) : "0分"}</span>
+          <span title="合計作業時間">⏱ {total > 0 ? formatDuration(total) : '0分'}</span>
           {task.dueDate && (
             <span className={`due due-${due}`}>
               期限 {formatDateKey(task.dueDate)}
@@ -181,6 +207,18 @@ function TaskRow({ task, summary, onEdit }: { task: Task; summary?: TaskSummary;
           {task.note && <span className="task-note">{task.note}</span>}
         </span>
       </button>
+      {!task.done &&
+        (running ? (
+          <a href="#/" className="start-btn is-running" aria-label={`「${task.title}」を計測中。タイマーを開く`}>
+            計測中
+          </a>
+        ) : (
+          <button className="start-btn" onClick={onStart} aria-label={`「${task.title}」でタイマーを開始`}>
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+              <path d="M8 5.5v13l10.5-6.5z" fill="currentColor" />
+            </svg>
+          </button>
+        ))}
     </li>
   );
 }
@@ -247,7 +285,7 @@ function ProjectList({
               <span className="dot lg" style={{ background: p.color }} />
               <span className="project-name">{p.name}</span>
               <span className="project-meta">
-                未完了 {s.open} 件 ・ 合計 {s.totalSec > 0 ? formatDuration(s.totalSec) : "0分"}
+                未完了 {s.open} 件 ・ 合計 {s.totalSec > 0 ? formatDuration(s.totalSec) : '0分'}
               </span>
             </button>
           </li>

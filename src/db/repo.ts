@@ -1,5 +1,5 @@
 import { db } from './db';
-import { DEFAULT_SETTINGS, LIMITS, PROJECT_COLORS, type Project, type Settings, type Task } from './types';
+import { DEFAULT_SETTINGS, LIMITS, PROJECT_COLORS, type Project, type Session, type Settings, type Task } from './types';
 import { nowIso } from '../lib/time';
 
 /* ---------- 入力の整形 ---------- */
@@ -135,5 +135,21 @@ export async function updateSettings(patch: Partial<Settings>): Promise<Settings
     const next = { ...(await getSettings()), ...patch };
     await db.kv.put({ key: 'settings', value: next });
     return next;
+  });
+}
+
+/* ---------- 記録 ---------- */
+
+/** タイマーが作った記録の下書きを保存できる形にする */
+export function makeSession(draft: Pick<Session, 'taskId' | 'type' | 'startAt' | 'endAt' | 'durationSec' | 'completed'>): Session {
+  const now = nowIso();
+  return { id: crypto.randomUUID(), ...draft, note: '', deleted: false, createdAt: now, updatedAt: now };
+}
+
+export async function updateSessionNote(id: string, note: string): Promise<void> {
+  await db.transaction('rw', db.sessions, async () => {
+    const current = await db.sessions.get(id);
+    if (!current) throw new ValidationError('記録が見つかりません');
+    await db.sessions.put({ ...current, note: cleanText(note, LIMITS.note), updatedAt: nowIso() });
   });
 }
