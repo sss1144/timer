@@ -6,7 +6,11 @@ import { makeDefaultPresets, migrateToV3, migrateToV4 } from './migrations';
 /** 設定と実行中タイマーのように 1 件だけ持つデータの置き場所 */
 export type KvRow =
   | { key: 'settings'; value: Settings }
-  | { key: 'activeTimer'; value: ActiveTimer };
+  | { key: 'activeTimer'; value: ActiveTimer }
+  /** 自動バックアップ先のフォルダ（JSON の書き出しには含めない） */
+  | { key: 'backupDir'; value: FileSystemDirectoryHandle }
+  /** 自動バックアップの状態（最後の日時、エラー、中身の目印） */
+  | { key: 'backupState'; value: { lastAt: string | null; error: string | null; signature: string | null } };
 
 export class AppDB extends Dexie {
   projects!: Table<Project, string>;

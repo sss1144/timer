@@ -7,7 +7,7 @@ import { presetSummary } from '../timer/presets';
 import { useTimerState } from '../timer/useTimerState';
 import { updateSettings } from '../db/repo';
 import type { Settings } from '../db/types';
-import { Placeholder } from '../components/Placeholder';
+import { BackupSection } from '../components/BackupSection';
 import { notificationSupported, playSoundNow, requestNotificationPermission } from '../timer/alarm';
 import { SOUNDS } from '../timer/sounds';
 import { showToast } from '../timer/ui';
@@ -141,7 +141,7 @@ export function SettingsScreen() {
         </label>
       </section>
 
-      <Placeholder step={9} items={['自動バックアップ（決めたフォルダへ）', 'JSON / CSV / Markdown の書き出しと、JSON からの復元', 'バックアップを促す表示']} />
+      <BackupSection />
 
       <section className="card settings usage-notes">
         <h2>使い方の注意</h2>

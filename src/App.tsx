@@ -4,6 +4,8 @@ import { Nav } from './components/Nav';
 import { InstallHint } from './components/InstallHint';
 import { MiniTimer } from './components/MiniTimer';
 import { SoundUnlockBanner } from './components/SoundUnlockBanner';
+import { BackupBanners } from './components/BackupBanners';
+import { useAutoBackup } from './backup/auto';
 import { Toast } from './components/Toast';
 import { TimerRunner } from './timer/TimerRunner';
 import { TimerScreen } from './screens/TimerScreen';
@@ -23,6 +25,7 @@ const SCREENS: Record<Route, ComponentType> = {
 export default function App() {
   const route = useRoute();
   const Screen = SCREENS[route];
+  useAutoBackup();
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -34,6 +37,7 @@ export default function App() {
       <main className="content">
         <InstallHint />
         <SoundUnlockBanner />
+        <BackupBanners />
         {route !== 'timer' && <MiniTimer />}
         <Screen />
       </main>
