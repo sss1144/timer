@@ -11,7 +11,7 @@
 | PWA | vite-plugin-pwa（autoUpdate） | |
 | グラフ | 自作 SVG | 要件書の推奨（Chart.js / Recharts）から変更。タイムラインは自作が必要で、棒グラフは単純なため |
 | 画面切り替え | ハッシュ方式（`#/tasks` など） | GitHub Pages で再読み込みしても 404 にならない |
-| 日付計算 | date-fns | ステップ 6 までに導入 |
+| 日付計算 | 自作の関数（`src/lib/day.ts`, `src/lib/time.ts`） | 当初は date-fns の予定だったが、必要な計算が少ないため使わなかった |
 | ID | `crypto.randomUUID()` | |
 | テスト | Vitest（IndexedDB は fake-indexeddb） | |
 | 公開 | GitHub Actions → GitHub Pages（`https://sss1144.github.io/timer/`） | `main` に push すると自動で公開 |
