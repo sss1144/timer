@@ -94,7 +94,8 @@ export function Timeline({ days, sessions, tasks, projects, boundaryHour }: Prop
             {formatTime(activeSeg.session.endAt)}
             <span className="tt-val">{formatDuration(activeSeg.session.durationSec)}</span>
           </span>
-          <span className="tt-sub">{SESSION_TYPE_LABEL[activeSeg.session.type]}{activeSeg.session.note ? ` ・ ${activeSeg.session.note}` : ''}</span>
+          <span className="tt-sub">{SESSION_TYPE_LABEL[activeSeg.session.type]}</span>
+          {activeSeg.session.note && <span className="tt-note">{activeSeg.session.note}</span>}
         </ChartTooltip>
       )}
     </div>

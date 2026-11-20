@@ -688,6 +688,7 @@ textarea { resize: vertical; }
 .chart .col:focus-visible > rect:first-child, .chart .seg:focus-visible > rect:first-child { fill: var(--accent-soft); }
 
 .chart-tooltip {
+  overflow-wrap: anywhere;
   position: absolute;
   z-index: 5;
   display: flex;
@@ -707,6 +708,17 @@ textarea { resize: vertical; }
 .tt-row { display: flex; align-items: center; gap: 6px; }
 .tt-val { margin-left: auto; padding-left: 10px; font-variant-numeric: tabular-nums; }
 .tt-sub { color: var(--muted); font-size: 12px; }
+/* メモ：空白のない長い文字列（URL など）も枠の幅で折り返し、4 行を超えたら「…」で省く */
+.tt-note {
+  font-size: 12px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+}
 .tt-link { margin-top: 4px; align-self: flex-start; border: 0; background: transparent; color: var(--accent); padding: 2px 0; cursor: pointer; font-size: 13px; }
 
 .swatch-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; flex: none; }
