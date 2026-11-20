@@ -98,6 +98,10 @@ export type Settings = {
   notification: boolean;
   weekStart: 'mon' | 'sun';
   dayBoundaryHour: number;
+  /** 表示モード：端末に合わせる / ライト / ダーク */
+  colorMode: 'auto' | 'light' | 'dark';
+  /** 見た目のテーマの ID（src/lib/themes.ts の一覧のどれか） */
+  theme: string;
   lastPresetId: string | null;
   lastBackupAt: string | null;
 };
@@ -112,6 +116,8 @@ export const DEFAULT_SETTINGS: Settings = {
   notification: false,
   weekStart: 'mon',
   dayBoundaryHour: 4,
+  colorMode: 'auto',
+  theme: 'blue',
   lastPresetId: null,
   lastBackupAt: null,
 };

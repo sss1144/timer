@@ -1,4 +1,4 @@
-/* ===== 色・サイズ（ダークモードは端末の設定に合わせて自動で切り替える） ===== */
+/* ===== 色・サイズ（ライトの色。ダークの色はすぐ下。テーマの色は src/lib/themes.ts） ===== */
 :root {
   --bg: #f5f6fa;
   --surface: #ffffff;
@@ -11,6 +11,8 @@
   --accent-contrast: #ffffff;
   --break: #22a565;
   --danger: #e5484d;
+  --warn-bg: #fff4d6;
+  --warn-text: #6b4500;
   --shadow: 0 1px 2px rgba(20, 24, 40, 0.05), 0 6px 20px rgba(20, 24, 40, 0.06);
   --radius: 14px;
   --sidebar-w: 224px;
@@ -18,8 +20,10 @@
   color-scheme: light;
 }
 
+/* ダークの色。表示モードが「端末に合わせる」なら端末の設定で、「ダーク」なら常に使う
+ * （テーマの色は src/lib/themes.ts から <html> に直接入れるので、ここの値より優先される） */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-mode="light"]) {
     --bg: #111319;
     --surface: #1a1d26;
     --surface-2: #252935;
@@ -28,11 +32,49 @@
     --border: #2e3341;
     --accent: #6d93ff;
     --accent-soft: #232c45;
+    --accent-contrast: #0b1530;
     --break: #3cc483;
     --danger: #ff6b6f;
+    --warn-bg: #3a2f12;
+    --warn-text: #f5d27a;
     --shadow: none;
+    --p-2a78d6: #3987e5;
+    --p-eb6834: #d95926;
+    --p-1baf7a: #199e70;
+    --p-eda100: #c98500;
+    --p-e87ba4: #d55181;
+    --p-008300: #0ca30c;
+    --p-6250d6: #9085e9;
+    --p-e34948: #e66767;
+    --series-neutral: #6b7180;
     color-scheme: dark;
   }
+}
+:root[data-mode="dark"] {
+  --bg: #111319;
+  --surface: #1a1d26;
+  --surface-2: #252935;
+  --text: #e8eaf0;
+  --muted: #9aa1b2;
+  --border: #2e3341;
+  --accent: #6d93ff;
+  --accent-soft: #232c45;
+  --accent-contrast: #0b1530;
+  --break: #3cc483;
+  --danger: #ff6b6f;
+  --warn-bg: #3a2f12;
+  --warn-text: #f5d27a;
+  --shadow: none;
+  --p-2a78d6: #3987e5;
+  --p-eb6834: #d95926;
+  --p-1baf7a: #199e70;
+  --p-eda100: #c98500;
+  --p-e87ba4: #d55181;
+  --p-008300: #0ca30c;
+  --p-6250d6: #9085e9;
+  --p-e34948: #e66767;
+  --series-neutral: #6b7180;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -598,19 +640,16 @@ textarea { resize: vertical; }
 .record-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 13px; }
 .record-note { color: var(--muted); flex-basis: 100%; overflow-wrap: anywhere; }
 .record-dur { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.badge.warn { background: #fff4d6; color: #8a5a00; }
+.badge.warn { background: var(--warn-bg); color: var(--warn-text); }
 
 .warning {
-  background: #fff4d6;
-  color: #6b4500;
+  background: var(--warn-bg);
+  color: var(--warn-text);
   border-radius: 10px;
   padding: 10px 12px;
   font-size: 14px;
 }
 .warning ul { margin: 4px 0 0; padding-left: 18px; }
-@media (prefers-color-scheme: dark) {
-  .badge.warn, .warning { background: #3a2f12; color: #f5d27a; }
-}
 
 .form-row.three { grid-template-columns: 1.3fr 1fr 1fr; }
 .next-day { font-style: normal; font-size: 11px; font-weight: 700; color: var(--accent); margin-left: 6px; }
@@ -636,19 +675,6 @@ textarea { resize: vertical; }
   --p-6250d6: #6250d6;
   --p-e34948: #e34948;
   --series-neutral: #a3a8b4;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --p-2a78d6: #3987e5;
-    --p-eb6834: #d95926;
-    --p-1baf7a: #199e70;
-    --p-eda100: #c98500;
-    --p-e87ba4: #d55181;
-    --p-008300: #0ca30c;
-    --p-6250d6: #9085e9;
-    --p-e34948: #e66767;
-    --series-neutral: #6b7180;
-  }
 }
 
 /* ===== 統計画面 ===== */
@@ -781,7 +807,7 @@ textarea { resize: vertical; }
   font-variant-numeric: tabular-nums;
 }
 .block-chip.kind-break { border-style: dashed; }
-.block-chip.is-current { background: var(--phase); border-color: var(--phase); color: #fff; font-weight: 700; border-style: solid; }
+.block-chip.is-current { background: var(--phase); border-color: var(--phase); color: var(--surface); font-weight: 700; border-style: solid; }
 .block-end { font-size: 12px; color: var(--muted); padding: 2px 4px; }
 
 /* プリセットの管理 */
@@ -877,7 +903,34 @@ kbd { font: inherit; font-size: 11px; padding: 1px 6px; border: 1px solid var(--
 .export-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; padding: 6px 0; font-size: 14px; }
 .export-inputs { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; color: var(--muted); }
 .backup .export-inputs input[type="date"] { width: auto; font-size: 14px; padding: 5px 8px; }
-.warn-banner { background: #fff4d6; color: #6b4500; }
+.warn-banner { background: var(--warn-bg); color: var(--warn-text); }
 .warn-banner p { color: inherit; opacity: 0.85; }
-@media (prefers-color-scheme: dark) { .warn-banner { background: #3a2f12; color: #f5d27a; } }
 .banner > .button-col { flex: none; }
+
+/* ===== 見た目（テーマ） ===== */
+.theme-block > span { display: block; margin-bottom: 8px; }
+.theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-bottom: 8px; }
+.theme-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  cursor: pointer;
+  text-align: left;
+}
+.theme-card:hover { border-color: var(--muted); }
+.theme-card[aria-checked="true"] { border-color: var(--accent); }
+.theme-preview { display: grid; grid-template-columns: 1fr 1fr; height: 44px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+.theme-half { display: flex; flex-direction: column; justify-content: center; gap: 5px; padding: 0 8px; }
+.theme-chip { width: 26px; height: 10px; border-radius: 999px; }
+.theme-line { width: 80%; height: 6px; border-radius: 999px; }
+.theme-name { font-size: 13px; font-weight: 600; padding: 0 2px; }
+.mode-row { flex-wrap: wrap; }
+.mode-row > span:first-child { white-space: nowrap; }
+@media (max-width: 480px) {
+  .mode-row .segmented { width: 100%; }
+  .mode-row .segmented > button { flex: 1; padding: 7px 6px; }
+}

@@ -13,6 +13,23 @@
     <meta name="apple-mobile-web-app-title" content="作業記録" />
     <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <script>
+      // 前回の表示モードとテーマを、画面を描く前に当てる（一瞬だけ標準の色が見えるのを防ぐ）。src/lib/themes.ts と同じ処理
+      try {
+        var a = JSON.parse(localStorage.getItem('appearance') || 'null');
+        if (a) {
+          var root = document.documentElement;
+          var dark = a.mode === 'dark' || (a.mode === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+          var c = dark ? a.dark : a.light;
+          if (a.mode !== 'auto') root.setAttribute('data-mode', a.mode);
+          root.style.setProperty('--accent', c.accent);
+          root.style.setProperty('--accent-soft', c.accentSoft);
+          root.style.setProperty('--accent-contrast', c.accentContrast);
+          root.style.setProperty('--bg', c.bg);
+          if (c.breakColor) root.style.setProperty('--break', c.breakColor);
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

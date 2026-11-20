@@ -10,6 +10,7 @@ import type { Settings } from '../db/types';
 import { BackupSection } from '../components/BackupSection';
 import { notificationSupported, playSoundNow, requestNotificationPermission } from '../timer/alarm';
 import { SOUNDS } from '../timer/sounds';
+import { THEMES, type ColorMode } from '../lib/themes';
 import { showToast } from '../timer/ui';
 
 type NumberKey = 'stopwatchCheckMin';
@@ -112,6 +113,8 @@ export function SettingsScreen() {
           onChange={v => void toggleNotification(v)}
         />
       </section>
+
+      <AppearanceSection settings={s} />
 
       <section className="card settings">
         <h2>日付・週</h2>
@@ -239,5 +242,58 @@ function SoundSetting({ settings, field, label, hint }: { settings: Settings; fi
         </button>
       </span>
     </label>
+  );
+}
+
+/* ---------- 見た目 ---------- */
+
+const MODE_LABEL: Record<ColorMode, string> = { auto: '端末に合わせる', light: 'ライト', dark: 'ダーク' };
+
+function AppearanceSection({ settings }: { settings: Settings }) {
+  return (
+    <section className="card settings">
+      <h2>見た目</h2>
+      <div className="setting-row mode-row">
+        <span>表示モード</span>
+        <div className="segmented" role="radiogroup" aria-label="表示モード">
+          {(Object.keys(MODE_LABEL) as ColorMode[]).map(m => (
+            <button key={m} type="button" role="radio" aria-checked={settings.colorMode === m} onClick={() => void updateSettings({ colorMode: m })}>
+              {MODE_LABEL[m]}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="setting-block theme-block">
+        <span>テーマ</span>
+        <div className="theme-grid" role="radiogroup" aria-label="テーマ">
+          {THEMES.map(t => (
+            <button
+              key={t.id}
+              type="button"
+              role="radio"
+              aria-checked={settings.theme === t.id}
+              className="theme-card"
+              onClick={() => void updateSettings({ theme: t.id })}
+            >
+              <span className="theme-preview" aria-hidden="true">
+                <span className="theme-half" style={{ background: t.light.bg }}>
+                  <span className="theme-chip" style={{ background: t.light.accent }} />
+                  <span className="theme-line" style={{ background: t.light.accentSoft }} />
+                </span>
+                <span className="theme-half" style={{ background: t.dark.bg }}>
+                  <span className="theme-chip" style={{ background: t.dark.accent }} />
+                  <span className="theme-line" style={{ background: t.dark.accentSoft }} />
+                </span>
+              </span>
+              <span className="theme-name">
+                {settings.theme === t.id && <span aria-hidden="true">✓ </span>}
+                {t.name}
+              </span>
+            </button>
+          ))}
+        </div>
+        <p className="muted small">ボタン・強調の色と背景の色合いが変わります。グラフのプロジェクトの色は変わりません。</p>
+      </div>
+    </section>
   );
 }

@@ -6,6 +6,7 @@ import { MiniTimer } from './components/MiniTimer';
 import { SoundUnlockBanner } from './components/SoundUnlockBanner';
 import { BackupBanners } from './components/BackupBanners';
 import { useAutoBackup } from './backup/auto';
+import { useAppearance } from './lib/useAppearance';
 import { Toast } from './components/Toast';
 import { TimerRunner } from './timer/TimerRunner';
 import { TimerScreen } from './screens/TimerScreen';
@@ -26,6 +27,7 @@ export default function App() {
   const route = useRoute();
   const Screen = SCREENS[route];
   useAutoBackup();
+  useAppearance();
 
   useEffect(() => {
     window.scrollTo(0, 0);
