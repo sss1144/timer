@@ -812,3 +812,38 @@ textarea { resize: vertical; }
 .block-editor input[type="number"] { text-align: right; }
 .block-editor .unit { color: var(--muted); font-size: 14px; }
 .block-add { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+
+/* ===== 毎日のタスク・今日の予定 ===== */
+.progress { display: inline-block; flex: 1; min-width: 80px; max-width: 220px; height: 8px; background: var(--surface-2); border-radius: 999px; overflow: hidden; vertical-align: middle; }
+.progress-fill { display: block; height: 100%; border-radius: 0 4px 4px 0; transition: width 0.4s; }
+.daily-meta { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.task-meta .daily-meta { flex: 1 1 260px; }
+.plan-row .daily-meta { display: flex; width: 100%; }
+.daily-nums { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.achieved { color: var(--break); font-weight: 700; white-space: nowrap; }
+.daily-group h2 .count, .today-plan h2 .count { margin-left: auto; }
+
+.plan-list { list-style: none; margin: 0; padding: 0; }
+.plan-list li + li { border-top: 1px solid var(--border); }
+.plan-row {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 10px 6px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--muted);
+}
+.plan-row:hover:not(:disabled) { background: var(--surface-2); }
+.plan-row:disabled { cursor: default; }
+.plan-row.is-selected { background: var(--accent-soft); }
+.plan-title { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text); font-size: 15px; overflow-wrap: anywhere; }
+.key-hint { margin: 12px 0 0; font-size: 12px; color: var(--muted); }
+kbd { font: inherit; font-size: 11px; padding: 1px 6px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px; background: var(--surface-2); }
+@media (hover: none) { .key-hint { display: none; } }
+.project-tag { display: inline-flex; align-items: center; gap: 5px; }

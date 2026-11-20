@@ -63,11 +63,32 @@ export async function updateProject(id: string, patch: Partial<ProjectInput & { 
 export type TaskInput = {
   title: string;
   projectId: string | null;
-  /** 見積もり時間（分） */
+  /** 見積もり時間（分）。繰り返しタスクでは使わない */
   estimatedMin: number | null;
+  /** 毎日繰り返すなら 1 日あたりの予定時間（分）。null = 繰り返さない */
+  repeat?: { minPerDay: number } | null;
+  /** 期限。繰り返しタスクでは使わない */
   dueDate: string | null;
   note: string;
 };
+
+/** 繰り返しの予定時間を確かめる（1〜1440 分の整数、必須） */
+export function cleanRepeat(repeat: { minPerDay: number } | null | undefined): { minPerDay: number } | null {
+  if (!repeat) return null;
+  const n = Math.round(Number(repeat.minPerDay));
+  if (!Number.isFinite(n) || n < 1 || n > LIMITS.maxMinPerDay) {
+    throw new ValidationError(`1 日の予定時間は 1〜${LIMITS.maxMinPerDay} 分にしてください`);
+  }
+  return { minPerDay: n };
+}
+
+/** 繰り返しタスクは見積もり時間と期限を持たない */
+function applyRepeatRules(t: Pick<Task, 'repeat' | 'estimatedMin' | 'dueDate'>): void {
+  if (t.repeat) {
+    t.estimatedMin = null;
+    t.dueDate = null;
+  }
+}
 
 export async function createTask(input: TaskInput): Promise<Task> {
   const now = nowIso();
@@ -76,7 +97,7 @@ export async function createTask(input: TaskInput): Promise<Task> {
     projectId: input.projectId || null,
     title: cleanText(input.title, LIMITS.taskTitle, 'タスク名を入力してください'),
     estimatedMin: cleanEstimate(input.estimatedMin),
-    repeat: null,
+    repeat: cleanRepeat(input.repeat),
     dueDate: cleanDueDate(input.dueDate),
     note: cleanText(input.note, LIMITS.note),
     done: false,
@@ -85,6 +106,7 @@ export async function createTask(input: TaskInput): Promise<Task> {
     createdAt: now,
     updatedAt: now,
   };
+  applyRepeatRules(task);
   await db.tasks.add(task);
   return task;
 }
@@ -107,7 +129,9 @@ export function updateTask(id: string, patch: Partial<TaskInput>): Promise<Task>
     if (patch.projectId !== undefined) t.projectId = patch.projectId || null;
     if (patch.estimatedMin !== undefined) t.estimatedMin = cleanEstimate(patch.estimatedMin);
     if (patch.dueDate !== undefined) t.dueDate = cleanDueDate(patch.dueDate);
+    if (patch.repeat !== undefined) t.repeat = cleanRepeat(patch.repeat);
     if (patch.note !== undefined) t.note = cleanText(patch.note, LIMITS.note);
+    applyRepeatRules(t);
   });
 }
 

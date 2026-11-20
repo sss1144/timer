@@ -7,7 +7,7 @@ import { ROUTE_LABEL } from '../components/Nav';
 import { Dialog } from '../components/Dialog';
 import * as actions from './actions';
 import { checkpointSec, currentBlock, elapsedMs, getStatus, isCheckDue, isRecording, remainingMs } from './engine';
-import { playAlarm, showNotification } from './alarm';
+import { playAlarm, showNotification, unlockAudio } from './alarm';
 import { checkPromptStore, handleResult, showToast, useNow } from './ui';
 import { BLOCK_LABEL } from './presets';
 import { useTimerState } from './useTimerState';
@@ -16,7 +16,8 @@ import { useTimerState } from './useTimerState';
  * - 時間になったブロックを終わらせて記録する（閉じている間に終わった分も、開いたときに記録する）
  * - ストップウォッチの止め忘れ確認を出す
  * - ブラウザのタブ名に残り時間を出す
- * - タイマー中は画面が消えないようにする */
+ * - タイマー中は画面が消えないようにする
+ * - スペースキーで開始・一時停止・再開する */
 export function TimerRunner({ route }: { route: Route }) {
   const { timer, settings, plan } = useTimerState();
   const tasks = useTasks();
@@ -24,6 +25,28 @@ export function TimerRunner({ route }: { route: Route }) {
   const now = useNow(status === 'running', 500);
   const busy = useRef(false);
   const checkOpen = useStore(checkPromptStore);
+
+  // スペースキー：開始・一時停止・再開（文字の入力中・ボタンなどにフォーカスがあるとき・ダイアログを開いているときは効かない）
+  const latest = useRef({ timer, settings, plan });
+  latest.current = { timer, settings, plan };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || e.repeat || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, button, a, summary, [contenteditable], [role="button"], [role="checkbox"], [role="radio"], [role="tab"], [role="switch"]')) return;
+      if (document.querySelector('dialog[open]')) return;
+      const { timer: t, settings: s, plan: p } = latest.current;
+      if (!t) return;
+      const st = getStatus(t);
+      if (st === 'idle' && t.mode === 'timer' && !p) return;
+      e.preventDefault();
+      unlockAudio();
+      const action = st === 'idle' ? actions.start : st === 'running' ? actions.pause : actions.resume;
+      void action().then(r => handleResult(r, s));
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   // 時間になったら次のブロックへ（記録・アラーム）
   useEffect(() => {

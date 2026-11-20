@@ -1,5 +1,8 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { useActiveTimer, useProjects, useSessions, useSettings, useTasks } from '../db/hooks';
+import { useProjects, useSessions, useTasks } from '../db/hooks';
+import { todayProgress, type DailyProgress } from '../db/daily';
+import { useTimerState } from '../timer/useTimerState';
+import { useNow } from '../timer/ui';
 import {
   dueStatus,
   filterTasks,
@@ -21,6 +24,7 @@ import * as timerActions from '../timer/actions';
 import { unlockAudio } from '../timer/alarm';
 import { getStatus } from '../timer/engine';
 import { handleResult, showToast } from '../timer/ui';
+import { DailyMeta } from '../components/DailyMeta';
 
 type View = 'tasks' | 'projects';
 type Editing =
@@ -40,9 +44,10 @@ export function TasksScreen() {
   const [editing, setEditing] = useState<Editing>(null);
 
   const summaries = useMemo(() => summarizeByTask(sessions ?? []), [sessions]);
-  const timer = useActiveTimer();
-  const settings = useSettings();
+  const { timer, settings, plan } = useTimerState();
   const timerBusy = !!timer && getStatus(timer) !== 'idle';
+  // 計測中は毎日のタスクの今日の実績が増えるので、1 秒ごとに描き直す
+  const now = useNow(!!timer && getStatus(timer) === 'running', 1000);
 
   /** タスク一覧からそのままタイマーを開始する */
   const startTask = async (task: Task) => {
@@ -64,7 +69,13 @@ export function TasksScreen() {
     projectFilter === 'all' || projectFilter === 'none' || selectableProjects.some(p => p.id === projectFilter) ? projectFilter : 'all';
 
   const filtered = sortTasks(filterTasks(tasks, projects, { status, project: effectiveFilter, includeArchived }), status);
-  const groups = effectiveFilter === 'all' ? groupByProject(filtered, projects) : [{ project: null, tasks: filtered }];
+  // 未完了の繰り返しタスクは一番上に「毎日のタスク」としてまとめる
+  const dailyList = status === 'open' ? filtered.filter(t => t.repeat) : [];
+  const others = status === 'open' ? filtered.filter(t => !t.repeat) : filtered;
+  const progressById = new Map(
+    todayProgress({ tasks: dailyList, projects, sessions, timer, plan, now, boundaryHour: settings.dayBoundaryHour, includeArchived: true }).map(p => [p.task.id, p]),
+  );
+  const groups = effectiveFilter === 'all' ? groupByProject(others, projects) : others.length ? [{ project: null, tasks: others }] : [];
   const unusedColor = PROJECT_COLORS.find(c => !projects.some(p => !p.deleted && p.color === c));
 
   return (
@@ -116,6 +127,30 @@ export function TasksScreen() {
               アーカイブ済みも表示
             </label>
           </div>
+
+          {dailyList.length > 0 && (
+            <section className="card task-group daily-group">
+              <h2>
+                毎日のタスク
+                <span className="count">
+                  今日 {dailyList.filter(t => progressById.get(t.id)?.achieved).length} / {dailyList.length} 達成
+                </span>
+              </h2>
+              <ul className="task-list">
+                {dailyList.map(t => (
+                  <TaskRow
+                    key={t.id}
+                    task={t}
+                    summary={summaries.get(t.id)}
+                    progress={progressById.get(t.id)}
+                    running={timerBusy && timer?.taskId === t.id}
+                    onEdit={() => setEditing({ kind: 'task', task: t })}
+                    onStart={() => void startTask(t)}
+                  />
+                ))}
+              </ul>
+            </section>
+          )}
 
           {filtered.length === 0 ? (
             <EmptyTasks status={status} hasProjects={activeProjects.length > 0} onAddTask={() => setEditing({ kind: 'task' })} onAddProject={() => setEditing({ kind: 'project' })} />
@@ -172,8 +207,8 @@ function ScreenHeader({ children }: { children?: ReactNode }) {
   );
 }
 
-function TaskRow(props: { task: Task; summary?: TaskSummary; running: boolean; onEdit: () => void; onStart: () => void }) {
-  const { task, summary, running, onEdit, onStart } = props;
+function TaskRow(props: { task: Task; summary?: TaskSummary; progress?: DailyProgress; running: boolean; onEdit: () => void; onStart: () => void }) {
+  const { task, summary, progress, running, onEdit, onStart } = props;
   const due = dueStatus(task.dueDate, toDateKey(new Date()));
   const total = summary?.totalSec ?? 0;
 
@@ -193,10 +228,21 @@ function TaskRow(props: { task: Task; summary?: TaskSummary; running: boolean; o
       <button className="task-main" onClick={onEdit}>
         <span className="task-title">{task.title}</span>
         <span className="task-meta">
-          <span title={task.estimatedMin ? '合計作業時間 / 見積もり時間' : '合計作業時間'}>
-            ⏱ {total > 0 ? formatDuration(total) : '0分'}
-            {task.estimatedMin ? ` / ${formatDuration(task.estimatedMin * 60)}` : ''}
-          </span>
+          {progress?.project && (
+            <span className="project-tag">
+              <span className="dot" style={{ background: displayColor(progress.project.color) }} />
+              {progress.project.name}
+            </span>
+          )}
+          {task.repeat && <span className="badge">毎日 {formatDuration(task.repeat.minPerDay * 60)}</span>}
+          {progress ? (
+            <DailyMeta progress={progress} />
+          ) : (
+            <span title={task.estimatedMin ? '合計作業時間 / 見積もり時間' : '合計作業時間'}>
+              ⏱ {total > 0 ? formatDuration(total) : '0分'}
+              {task.estimatedMin ? ` / ${formatDuration(task.estimatedMin * 60)}` : ''}
+            </span>
+          )}
           {task.dueDate && (
             <span className={`due due-${due}`}>
               期限 {formatDateKey(task.dueDate)}

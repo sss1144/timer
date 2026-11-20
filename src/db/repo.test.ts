@@ -100,6 +100,26 @@ describe('タスク', () => {
   });
 });
 
+describe('繰り返しタスク', () => {
+  it('毎日の予定時間を持ち、見積もり時間と期限は持たない', async () => {
+    const t = await createTask({ ...baseTask, repeat: { minPerDay: 60.4 }, estimatedMin: 300, dueDate: '2026-12-01' });
+    expect(t).toMatchObject({ repeat: { minPerDay: 60 }, estimatedMin: null, dueDate: null });
+  });
+
+  it('予定時間は 1〜1440 分', async () => {
+    await expect(createTask({ ...baseTask, repeat: { minPerDay: 0 } })).rejects.toThrow('1〜1440');
+    await expect(createTask({ ...baseTask, repeat: { minPerDay: 1441 } })).rejects.toThrow('1〜1440');
+  });
+
+  it('繰り返しのオン・オフを編集で切り替えられる', async () => {
+    const t = await createTask({ ...baseTask, estimatedMin: 120, dueDate: '2026-12-01' });
+    const daily = await updateTask(t.id, { repeat: { minPerDay: 30 } });
+    expect(daily).toMatchObject({ repeat: { minPerDay: 30 }, estimatedMin: null, dueDate: null });
+    const single = await updateTask(t.id, { repeat: null, estimatedMin: 90 });
+    expect(single).toMatchObject({ repeat: null, estimatedMin: 90 });
+  });
+});
+
 describe('入力の整形', () => {
   it('見積もり時間は 1〜9999 分の整数、それ以外は null', () => {
     expect(cleanEstimate(0)).toBeNull();

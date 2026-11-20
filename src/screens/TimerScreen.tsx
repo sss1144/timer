@@ -7,6 +7,9 @@ import { dayKeyOf, dayRange, isWithin } from '../lib/day';
 import { useStore } from '../lib/store';
 import { formatClock, formatDateKey, formatDuration, formatTime } from '../lib/time';
 import { Dialog } from '../components/Dialog';
+import { DailyMeta } from '../components/DailyMeta';
+import { todayProgress } from '../db/daily';
+import { displayColor } from '../lib/colors';
 import * as actions from '../timer/actions';
 import { unlockAudio } from '../timer/alarm';
 import {
@@ -107,11 +110,16 @@ export function TimerScreen() {
             onSkip={onSkip}
           />
         </div>
+        <p className="key-hint">
+          <kbd>Space</kbd> キーで開始・一時停止・再開
+        </p>
       </section>
 
       <RecentRecord tasks={tasks} />
 
       <TodaySummary sessions={sessions} timer={timer} plan={plan} now={now} settings={settings} />
+
+      <TodayPlan tasks={tasks} projects={projects} sessions={sessions} timer={timer} plan={plan} now={now} settings={settings} idle={idle} />
 
       {confirm && (
         <ConfirmDialog
@@ -396,6 +404,58 @@ function TodaySummary(props: { sessions: Session[]; timer: ActiveTimer; plan: Pr
           計測中の作業は、開始した日（{formatDateKey(dayKeyOf(new Date(timer.startedAt!), settings.dayBoundaryHour))}）に数えます
         </p>
       )}
+    </section>
+  );
+}
+
+/* ---------- 今日の予定（毎日のタスク） ---------- */
+
+function TodayPlan(props: {
+  tasks: Task[];
+  projects: Project[];
+  sessions: Session[];
+  timer: ActiveTimer;
+  plan: PresetPlan | null;
+  now: number;
+  settings: Settings;
+  idle: boolean;
+}) {
+  const { tasks, projects, sessions, timer, plan, now, settings, idle } = props;
+  const list = todayProgress({ tasks, projects, sessions, timer, plan, now, boundaryHour: settings.dayBoundaryHour });
+  if (list.length === 0) return null;
+  const achieved = list.filter(p => p.achieved).length;
+
+  return (
+    <section className="card today-plan">
+      <h2>
+        今日の予定
+        <span className="count">
+          {achieved} / {list.length} 達成
+        </span>
+      </h2>
+      <ul className="plan-list">
+        {list.map(p => {
+          const selected = timer.taskId === p.task.id;
+          return (
+            <li key={p.task.id}>
+              <button
+                className={`plan-row${selected ? ' is-selected' : ''}`}
+                onClick={() => void actions.setTask(p.task.id)}
+                disabled={!idle}
+                aria-pressed={selected}
+                title={idle ? 'このタスクを選ぶ' : 'タイマーの実行中は選べません'}
+              >
+                <span className="plan-title">
+                  <span className="dot" style={{ background: displayColor(p.project?.color) }} />
+                  {p.task.title}
+                  {selected && <span className="badge">{p.live ? '計測中' : '選択中'}</span>}
+                </span>
+                <DailyMeta progress={p} />
+              </button>
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }

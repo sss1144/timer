@@ -16,6 +16,8 @@ export function TaskDialog({ task, projects, defaultProjectId, onClose }: Props)
   const [title, setTitle] = useState(task?.title ?? '');
   const [projectId, setProjectId] = useState(task?.projectId ?? defaultProjectId ?? '');
   const [estimate, setEstimate] = useState(task?.estimatedMin?.toString() ?? '');
+  const [daily, setDaily] = useState(!!task?.repeat);
+  const [minPerDay, setMinPerDay] = useState(task?.repeat?.minPerDay.toString() ?? '60');
   const [dueDate, setDueDate] = useState(task?.dueDate ?? '');
   const [note, setNote] = useState(task?.note ?? '');
   const [error, setError] = useState('');
@@ -29,8 +31,9 @@ export function TaskDialog({ task, projects, defaultProjectId, onClose }: Props)
     const input = {
       title,
       projectId: projectId || null,
-      estimatedMin: estimate === '' ? null : Number(estimate),
-      dueDate: dueDate || null,
+      estimatedMin: daily || estimate === '' ? null : Number(estimate),
+      repeat: daily ? { minPerDay: Number(minPerDay) } : null,
+      dueDate: daily ? null : dueDate || null,
       note,
     };
     try {
@@ -70,16 +73,37 @@ export function TaskDialog({ task, projects, defaultProjectId, onClose }: Props)
           </select>
         </label>
 
-        <div className="form-row">
+        <label className="check">
+          <input type="checkbox" checked={daily} onChange={e => setDaily(e.target.checked)} />
+          毎日繰り返す（1 日の予定時間を決めて、今日の実績と比べます）
+        </label>
+
+        {daily ? (
           <label className="form-field">
-            <span>見積もり時間（分・任意）</span>
-            <input type="number" inputMode="numeric" min={1} max={LIMITS.maxEstimateMin} value={estimate} onChange={e => setEstimate(e.target.value)} placeholder="例: 120" />
+            <span>1 日の予定時間（分）</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={LIMITS.maxMinPerDay}
+              value={minPerDay}
+              onChange={e => setMinPerDay(e.target.value)}
+              placeholder="例: 60"
+              required
+            />
           </label>
-          <label className="form-field">
-            <span>期限（任意）</span>
-            <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
-          </label>
-        </div>
+        ) : (
+          <div className="form-row">
+            <label className="form-field">
+              <span>見積もり時間（分・任意）</span>
+              <input type="number" inputMode="numeric" min={1} max={LIMITS.maxEstimateMin} value={estimate} onChange={e => setEstimate(e.target.value)} placeholder="例: 120" />
+            </label>
+            <label className="form-field">
+              <span>期限（任意）</span>
+              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
+            </label>
+          </div>
+        )}
 
         <label className="form-field">
           <span>メモ（任意）</span>
