@@ -7,25 +7,25 @@ const project = (id: string, extra: Partial<Project> = {}): Project => ({
   createdAt: `2026-11-0${id.length}T00:00:00.000+09:00`, updatedAt: '', ...extra,
 });
 const task = (id: string, extra: Partial<Task> = {}): Task => ({
-  id, projectId: null, title: id, estimatedPomodoros: null, dueDate: null, note: '', done: false, doneAt: null,
+  id, projectId: null, title: id, estimatedMin: null, repeat: null, dueDate: null, note: '', done: false, doneAt: null,
   deleted: false, createdAt: `2026-11-19T10:00:0${id.length}.000+09:00`, updatedAt: '', ...extra,
 });
 const session = (taskId: string | null, extra: Partial<Session> = {}): Session => ({
-  id: crypto.randomUUID(), taskId, type: 'pomodoro', startAt: '', endAt: '', durationSec: 1500, completed: true,
+  id: crypto.randomUUID(), taskId, type: 'timer', startAt: '', endAt: '', durationSec: 1500, completed: true,
   note: '', deleted: false, createdAt: '', updatedAt: '', ...extra,
 });
 
 describe('summarizeByTask', () => {
-  it('合計時間と完了ポモドーロ数を数える', () => {
+  it('タスクごとの合計時間（削除済みは数えない）', () => {
     const m = summarizeByTask([
       session('a'),
-      session('a', { completed: false, durationSec: 600 }), // 途中で止めたポモドーロ
+      session('a', { completed: false, durationSec: 600 }),
       session('a', { type: 'stopwatch', completed: false, durationSec: 3600 }),
-      session('a', { deleted: true }), // 削除済みは数えない
+      session('a', { deleted: true }),
       session(null, { type: 'manual', completed: false, durationSec: 120 }),
     ]);
-    expect(m.get('a')).toEqual({ totalSec: 1500 + 600 + 3600, completedPomodoros: 1 });
-    expect(m.get(null)).toEqual({ totalSec: 120, completedPomodoros: 0 });
+    expect(m.get('a')).toEqual({ totalSec: 1500 + 600 + 3600 });
+    expect(m.get(null)).toEqual({ totalSec: 120 });
   });
 });
 

@@ -175,7 +175,6 @@ function ScreenHeader({ children }: { children?: ReactNode }) {
 function TaskRow(props: { task: Task; summary?: TaskSummary; running: boolean; onEdit: () => void; onStart: () => void }) {
   const { task, summary, running, onEdit, onStart } = props;
   const due = dueStatus(task.dueDate, toDateKey(new Date()));
-  const done = summary?.completedPomodoros ?? 0;
   const total = summary?.totalSec ?? 0;
 
   return (
@@ -194,11 +193,10 @@ function TaskRow(props: { task: Task; summary?: TaskSummary; running: boolean; o
       <button className="task-main" onClick={onEdit}>
         <span className="task-title">{task.title}</span>
         <span className="task-meta">
-          <span title="実績ポモドーロ数 / 見積もり">
-            🍅 {done}
-            {task.estimatedPomodoros ? ` / ${task.estimatedPomodoros}` : ''}
+          <span title={task.estimatedMin ? '合計作業時間 / 見積もり時間' : '合計作業時間'}>
+            ⏱ {total > 0 ? formatDuration(total) : '0分'}
+            {task.estimatedMin ? ` / ${formatDuration(task.estimatedMin * 60)}` : ''}
           </span>
-          <span title="合計作業時間">⏱ {total > 0 ? formatDuration(total) : '0分'}</span>
           {task.dueDate && (
             <span className={`due due-${due}`}>
               期限 {formatDateKey(task.dueDate)}

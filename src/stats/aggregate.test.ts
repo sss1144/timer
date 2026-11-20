@@ -9,7 +9,7 @@ const project = (id: string, createdAt: string, extra: Partial<Project> = {}): P
   id, name: id, color: '#2a78d6', archived: false, deleted: false, createdAt, updatedAt: createdAt, ...extra,
 });
 const task = (id: string, projectId: string | null, extra: Partial<Task> = {}): Task => ({
-  id, projectId, title: id, estimatedPomodoros: null, dueDate: null, note: '', done: false, doneAt: null, deleted: false,
+  id, projectId, title: id, estimatedMin: null, repeat: null, dueDate: null, note: '', done: false, doneAt: null, deleted: false,
   createdAt: '', updatedAt: '', ...extra,
 });
 let n = 0;
@@ -61,10 +61,10 @@ describe('computeStats', () => {
   ];
   const week = makePeriod('week', '2026-11-19', 'mon', 0);
 
-  it('合計・完了ポモドーロ・完了タスク・日別・プロジェクト別・タスク別', () => {
+  it('合計・完了タスク・日別・プロジェクト別・タスク別', () => {
     const sessions = [
-      session('デッサン', at(2026, 11, 16, 20), at(2026, 11, 16, 20, 25), 1500, { type: 'pomodoro', completed: true }),
-      session('デッサン', at(2026, 11, 16, 21), at(2026, 11, 16, 21, 10), 600, { type: 'pomodoro', completed: false }),
+      session('デッサン', at(2026, 11, 16, 20), at(2026, 11, 16, 20, 25), 1500, { type: 'timer', completed: true }),
+      session('デッサン', at(2026, 11, 16, 21), at(2026, 11, 16, 21, 10), 600, { type: 'timer', completed: false }),
       session('Excel', at(2026, 11, 18, 9), at(2026, 11, 18, 10), 3600),
       session(null, at(2026, 11, 18, 12), at(2026, 11, 18, 12, 30), 1800),
       session('雑務', at(2026, 11, 19, 8), at(2026, 11, 19, 8, 20), 1200),
@@ -75,7 +75,6 @@ describe('computeStats', () => {
     ];
     const st = computeStats(sessions, tasks, projects, week, 0);
     expect(st.totalSec).toBe(1500 + 600 + 3600 + 1800 + 1200 + 600 + 600);
-    expect(st.completedPomodoros).toBe(1);
     expect(st.completedTasks).toBe(1); // Excel は先週完了
     expect(st.byDay.map(d => d.sec)).toEqual([2100, 0, 5400, 2400, 0, 0, 0]);
     expect(st.bySeries.map(s => [s.name, s.sec])).toEqual([
@@ -85,13 +84,13 @@ describe('computeStats', () => {
       ['未分類', 1800],
     ]);
     expect(st.bySeries[0].share).toBeCloseTo(4200 / st.totalSec);
-    expect(st.byTask.map(t => [t.title, t.sec, t.pomodoros])).toEqual([
-      ['Excel', 3600, 0],
-      ['デッサン', 2100, 1],
-      ['未分類', 1800, 0],
-      ['雑務', 1200, 0],
-      ['削除済みタスク', 600, 0],
-      ['消したプロジェクトのタスク', 600, 0],
+    expect(st.byTask.map(t => [t.title, t.sec])).toEqual([
+      ['Excel', 3600],
+      ['デッサン', 2100],
+      ['未分類', 1800],
+      ['雑務', 1200],
+      ['削除済みタスク', 600],
+      ['消したプロジェクトのタスク', 600],
     ]);
   });
 

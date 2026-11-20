@@ -1,5 +1,5 @@
 import { db } from './db';
-import { DEFAULT_SETTINGS, LIMITS, PROJECT_COLORS, type Project, type Session, type Settings, type Task } from './types';
+import { DEFAULT_SETTINGS, IDLE_TIMER, LIMITS, PROJECT_COLORS, type Project, type Session, type Settings, type Task, type TimerBlock, type TimerPreset } from './types';
 import { nowIso } from '../lib/time';
 
 /* ---------- 入力の整形 ---------- */
@@ -19,7 +19,7 @@ export function cleanColor(color: string): string {
 export function cleanEstimate(value: number | null | undefined): number | null {
   if (value == null || !Number.isFinite(value)) return null;
   const n = Math.round(value);
-  return n >= 1 ? Math.min(n, LIMITS.maxEstimate) : null;
+  return n >= 1 ? Math.min(n, LIMITS.maxEstimateMin) : null;
 }
 
 export function cleanDueDate(value: string | null | undefined): string | null {
@@ -63,7 +63,8 @@ export async function updateProject(id: string, patch: Partial<ProjectInput & { 
 export type TaskInput = {
   title: string;
   projectId: string | null;
-  estimatedPomodoros: number | null;
+  /** 見積もり時間（分） */
+  estimatedMin: number | null;
   dueDate: string | null;
   note: string;
 };
@@ -74,7 +75,8 @@ export async function createTask(input: TaskInput): Promise<Task> {
     id: crypto.randomUUID(),
     projectId: input.projectId || null,
     title: cleanText(input.title, LIMITS.taskTitle, 'タスク名を入力してください'),
-    estimatedPomodoros: cleanEstimate(input.estimatedPomodoros),
+    estimatedMin: cleanEstimate(input.estimatedMin),
+    repeat: null,
     dueDate: cleanDueDate(input.dueDate),
     note: cleanText(input.note, LIMITS.note),
     done: false,
@@ -103,7 +105,7 @@ export function updateTask(id: string, patch: Partial<TaskInput>): Promise<Task>
   return patchTask(id, t => {
     if (patch.title !== undefined) t.title = cleanText(patch.title, LIMITS.taskTitle, 'タスク名を入力してください');
     if (patch.projectId !== undefined) t.projectId = patch.projectId || null;
-    if (patch.estimatedPomodoros !== undefined) t.estimatedPomodoros = cleanEstimate(patch.estimatedPomodoros);
+    if (patch.estimatedMin !== undefined) t.estimatedMin = cleanEstimate(patch.estimatedMin);
     if (patch.dueDate !== undefined) t.dueDate = cleanDueDate(patch.dueDate);
     if (patch.note !== undefined) t.note = cleanText(patch.note, LIMITS.note);
   });
@@ -172,7 +174,7 @@ export function validateSession(input: SessionInput): SessionInput {
     startAt: input.startAt,
     endAt: input.endAt,
     durationSec,
-    completed: input.type === 'pomodoro' && input.completed,
+    completed: input.type === 'timer' && input.completed,
     note: cleanText(input.note, LIMITS.note),
   };
 }
@@ -200,5 +202,62 @@ export async function deleteSession(id: string): Promise<void> {
     const current = await db.sessions.get(id);
     if (!current) return;
     await db.sessions.put({ ...current, deleted: true, updatedAt: nowIso() });
+  });
+}
+
+/* ---------- タイマーのプリセット ---------- */
+
+export type PresetInput = Pick<TimerPreset, 'name' | 'blocks' | 'repeat'>;
+
+/** プリセットの入力を確かめる。作業ブロックが 1 つ以上必要 */
+export function validatePreset(input: PresetInput): PresetInput {
+  const name = cleanText(input.name, LIMITS.presetName, 'プリセット名を入力してください');
+  const blocks: TimerBlock[] = input.blocks.map(b => {
+    const min = Math.round(Number(b.min));
+    if (!Number.isFinite(min) || min < 1 || min > LIMITS.maxBlockMin) {
+      throw new ValidationError(`ブロックの長さは 1〜${LIMITS.maxBlockMin} 分にしてください`);
+    }
+    return { kind: b.kind === 'break' ? 'break' : 'work', min };
+  });
+  if (!blocks.some(b => b.kind === 'work')) throw new ValidationError('作業ブロックを 1 つ以上入れてください');
+  return { name, blocks, repeat: !!input.repeat };
+}
+
+/** タイマーが動いている（一時停止中を含む）間は、そのプリセットを編集・削除できない */
+async function assertPresetNotInUse(id: string): Promise<void> {
+  const row = await db.kv.get('activeTimer');
+  const t = row?.key === 'activeTimer' ? { ...IDLE_TIMER, ...row.value } : IDLE_TIMER;
+  if (t.mode === 'timer' && t.startedAt && t.presetId === id) {
+    throw new ValidationError('タイマーの実行中は、このプリセットを編集・削除できません');
+  }
+}
+
+export async function createPreset(input: PresetInput): Promise<TimerPreset> {
+  const now = nowIso();
+  const preset: TimerPreset = { id: crypto.randomUUID(), ...validatePreset(input), deleted: false, createdAt: now, updatedAt: now };
+  await db.presets.add(preset);
+  return preset;
+}
+
+export async function updatePreset(id: string, input: PresetInput): Promise<TimerPreset> {
+  return db.transaction('rw', db.presets, db.kv, async () => {
+    const current = await db.presets.get(id);
+    if (!current || current.deleted) throw new ValidationError('プリセットが見つかりません');
+    await assertPresetNotInUse(id);
+    const next: TimerPreset = { ...current, ...validatePreset(input), updatedAt: nowIso() };
+    await db.presets.put(next);
+    return next;
+  });
+}
+
+/** 削除済みの印を付ける。最後の 1 つは削除できない */
+export async function deletePreset(id: string): Promise<void> {
+  await db.transaction('rw', db.presets, db.kv, async () => {
+    const current = await db.presets.get(id);
+    if (!current || current.deleted) return;
+    await assertPresetNotInUse(id);
+    const remaining = (await db.presets.toArray()).filter(p => !p.deleted && p.id !== id);
+    if (remaining.length === 0) throw new ValidationError('プリセットは 1 つ以上必要です');
+    await db.presets.put({ ...current, deleted: true, updatedAt: nowIso() });
   });
 }

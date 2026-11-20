@@ -43,7 +43,6 @@ export function RecordsScreen() {
   }
 
   const total = daySessions.reduce((sum, s) => sum + s.durationSec, 0);
-  const pomodoros = daySessions.filter(s => s.type === 'pomodoro' && s.completed).length;
 
   // 追加するときの初期値：今日なら 30 分前、それ以外はその日の最後の記録の終了時刻（なければ 12:00）
   const last = daySessions.at(-1);
@@ -96,10 +95,6 @@ export function RecordsScreen() {
           <span className="muted">記録</span>
           <strong>{daySessions.length} 件</strong>
         </div>
-        <div>
-          <span className="muted">完了ポモドーロ</span>
-          <strong>🍅 {pomodoros}</strong>
-        </div>
       </section>
 
       {daySessions.length === 0 ? (
@@ -133,7 +128,6 @@ export function RecordsScreen() {
                       </span>
                       <span className="record-meta">
                         <span className="badge">{SESSION_TYPE_LABEL[s.type]}</span>
-                        {s.type === 'pomodoro' && s.completed && <span title="完了したポモドーロ">🍅</span>}
                         {overlap && <span className="badge warn">時間が重なっています</span>}
                         {s.note && <span className="record-note">{s.note}</span>}
                       </span>

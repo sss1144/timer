@@ -23,3 +23,5 @@ export function useActiveTimer(): ActiveTimer | undefined {
     [row],
   );
 }
+
+export const usePresets = () => useLiveQuery(() => db.presets.toArray(), []);

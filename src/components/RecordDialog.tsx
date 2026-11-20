@@ -39,7 +39,8 @@ export function RecordDialog({ session, defaultDate, defaultStart, tasks, projec
 
   const [taskId, setTaskId] = useState(session?.taskId ?? '');
   const [type, setType] = useState<SessionType>(session?.type ?? 'manual');
-  const [completed, setCompleted] = useState(session?.completed ?? false);
+  // 作業ブロックを最後まで終えたか。画面には出さず、元の値を保つ（種別をタイマー以外にすると false）
+  const [completed] = useState(session?.completed ?? false);
   const [date, setDate] = useState(initial.date);
   const [start, setStart] = useState(initial.start);
   const [end, setEnd] = useState(initial.end);
@@ -174,13 +175,6 @@ export function RecordDialog({ session, defaultDate, defaultStart, tasks, projec
             ? '作業時間を変えると終了時刻も変わります。終了が開始より前なら翌日として扱います。'
             : 'この記録は一時停止した時間を除いた作業時間です。時刻を変えても作業時間はそのままです。'}
         </p>
-
-        {type === 'pomodoro' && (
-          <label className="check">
-            <input type="checkbox" checked={completed} onChange={e => setCompleted(e.target.checked)} />
-            最後まで完了したポモドーロとして数える
-          </label>
-        )}
 
         <label className="form-field">
           <span>メモ（任意）</span>

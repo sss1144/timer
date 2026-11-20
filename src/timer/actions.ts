@@ -3,43 +3,54 @@
 
 import { db } from '../db/db';
 import { getSettings, makeSession } from '../db/repo';
-import { IDLE_TIMER, type ActiveTimer, type Session, type Settings } from '../db/types';
+import { IDLE_TIMER, type ActiveTimer, type Session, type Settings, type TimerPreset } from '../db/types';
 import * as engine from './engine';
+import { livePresets, planOf, resolvePreset } from './presets';
 
-export type ActionResult = engine.TimerChange & { sessions: Session[] };
+export type ActionResult = engine.TimerChange & { sessions: Session[]; plan: engine.PresetPlan | null };
 
 export async function loadTimer(): Promise<ActiveTimer> {
   const row = await db.kv.get('activeTimer');
   return { ...IDLE_TIMER, ...(row?.key === 'activeTimer' ? row.value : {}) };
 }
 
-async function mutate(
-  fn: (t: ActiveTimer, now: number, s: Settings) => engine.TimerChange | ActiveTimer,
-): Promise<ActionResult> {
-  return db.transaction('rw', db.kv, db.sessions, async () => {
+type Ctx = { now: number; settings: Settings; preset: TimerPreset | null; plan: engine.PresetPlan | null };
+
+async function mutate(fn: (t: ActiveTimer, ctx: Ctx) => engine.TimerChange | ActiveTimer): Promise<ActionResult> {
+  return db.transaction('rw', db.kv, db.sessions, db.presets, async () => {
     const now = Date.now();
-    const [t, s] = await Promise.all([loadTimer(), getSettings()]);
-    const out = fn(t, now, s);
+    const [loaded, settings, presets] = await Promise.all([loadTimer(), getSettings(), db.presets.toArray()]);
+    const preset = resolvePreset(loaded, livePresets(presets), settings.lastPresetId);
+    // 選んでいたプリセットが消えていたら（開始前のみ）、使えるプリセットに合わせる
+    let t = loaded;
+    if (t.mode === 'timer' && !t.startedAt && preset && t.presetId !== preset.id) t = engine.setPreset(t, preset.id);
+    const plan = planOf(preset);
+
+    const out = fn(t, { now, settings, preset, plan });
     const change: engine.TimerChange = 'timer' in out ? out : { timer: out, drafts: [], events: [] };
     const sessions = change.drafts.map(makeSession);
     if (sessions.length) await db.sessions.bulkAdd(sessions);
-    if (change.timer !== t) await db.kv.put({ key: 'activeTimer', value: change.timer });
-    return { ...change, sessions };
+    if (change.timer !== loaded) await db.kv.put({ key: 'activeTimer', value: change.timer });
+    // 最後に使ったプリセットを覚えておく（次回も選んでおくため）
+    const used = change.timer.mode === 'timer' ? change.timer.presetId : null;
+    if (used && used !== settings.lastPresetId) await db.kv.put({ key: 'settings', value: { ...settings, lastPresetId: used } });
+    return { ...change, sessions, plan };
   });
 }
 
 export const setMode = (mode: ActiveTimer['mode']) => mutate(t => engine.setMode(t, mode));
+export const setPreset = (presetId: string) => mutate(t => engine.setPreset(t, presetId));
 export const setTask = (taskId: string | null) => mutate(t => engine.setTask(t, taskId));
-export const start = () => mutate((t, now, s) => engine.start(t, now, s));
-export const pause = () => mutate((t, now) => engine.pause(t, now));
-export const resume = () => mutate((t, now) => engine.resume(t, now));
-export const stop = (record: boolean) => mutate((t, now) => engine.stop(t, now, record));
-export const skipBreak = () => mutate((t, now, s) => engine.skipBreak(t, now, s));
-/** 時間になったフェーズを終わらせる（定期的に呼ぶ） */
-export const advance = () => mutate((t, now, s) => engine.advance(t, now, s));
-export const continueAfterCheck = () => mutate((t, now) => engine.continueAfterCheck(t, now));
-export const stopAtCheckpoint = () => mutate((t, now, s) => engine.stopAtCheckpoint(t, now, s));
+export const start = () => mutate((t, c) => engine.start(t, c.now, c.plan));
+export const pause = () => mutate((t, c) => engine.pause(t, c.now));
+export const resume = () => mutate((t, c) => engine.resume(t, c.now));
+export const stop = (record: boolean) => mutate((t, c) => engine.stop(t, c.now, c.plan, record));
+export const skip = (record: boolean) => mutate((t, c) => engine.skip(t, c.now, c.plan, c.settings, record));
+/** 時間になったブロックを終わらせる（定期的に呼ぶ） */
+export const advance = () => mutate((t, c) => engine.advance(t, c.now, c.plan, c.settings));
+export const continueAfterCheck = () => mutate((t, c) => engine.continueAfterCheck(t, c.now));
+export const stopAtCheckpoint = () => mutate((t, c) => engine.stopAtCheckpoint(t, c.now, c.settings));
 
 /** タスクを選んで、そのまま開始する（タスク一覧から） */
 export const startWithTask = (taskId: string | null) =>
-  mutate((t, now, s) => (engine.getStatus(t) === 'idle' ? engine.start(engine.setTask(t, taskId), now, s) : t));
+  mutate((t, c) => (engine.getStatus(t) === 'idle' ? engine.start(engine.setTask(t, taskId), c.now, c.plan) : t));

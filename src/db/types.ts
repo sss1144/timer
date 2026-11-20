@@ -1,4 +1,4 @@
-/* データ構造（requirements.md 9 章 + docs/plan.md の追加分）
+/* データ構造（requirements.md 9 章）
  * すべての日時は時差付きの ISO 8601 文字列（例: 2026-11-19T20:00:00.000+09:00）。
  * 削除は実際には消さず deleted: true にする（JSON の統合読み込みで復活しないように）。 */
 
@@ -16,8 +16,11 @@ export type Task = {
   id: string;
   projectId: string | null;
   title: string;
-  estimatedPomodoros: number | null;
-  /** YYYY-MM-DD */
+  /** 繰り返しなしのタスクの見積もり時間（合計、分）。繰り返しタスクでは null */
+  estimatedMin: number | null;
+  /** null = 繰り返さない。あとで曜日などを足すときは、この中に項目を足す（ステップ 8 で使う） */
+  repeat: { minPerDay: number } | null;
+  /** YYYY-MM-DD。繰り返しタスクでは null */
   dueDate: string | null;
   note: string;
   done: boolean;
@@ -27,7 +30,41 @@ export type Task = {
   updatedAt: string;
 };
 
-export type SessionType = 'pomodoro' | 'stopwatch' | 'manual';
+export type SessionType = 'timer' | 'stopwatch' | 'manual';
+
+export type BlockKind = 'work' | 'break';
+export type TimerBlock = { kind: BlockKind; min: number };
+
+/** タイマーのプリセット（一覧は作成順に並べる） */
+export type TimerPreset = {
+  id: string;
+  name: string;
+  blocks: TimerBlock[];
+  /** true = 最後のブロックのあと最初に戻る */
+  repeat: boolean;
+  deleted: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** 初期のプリセット（新しく使い始めたときと、v2 からの移行で入れる） */
+export const DEFAULT_PRESETS: Pick<TimerPreset, 'name' | 'blocks' | 'repeat'>[] = [
+  { name: '2時間ブロック', blocks: [{ kind: 'work', min: 120 }], repeat: false },
+  {
+    name: 'ポモドーロ',
+    blocks: [
+      { kind: 'work', min: 25 },
+      { kind: 'break', min: 5 },
+      { kind: 'work', min: 25 },
+      { kind: 'break', min: 5 },
+      { kind: 'work', min: 25 },
+      { kind: 'break', min: 5 },
+      { kind: 'work', min: 25 },
+      { kind: 'break', min: 20 },
+    ],
+    repeat: true,
+  },
+];
 
 /** 1 件の作業記録 */
 export type Session = {
@@ -39,7 +76,7 @@ export type Session = {
   endAt: string;
   /** 一時停止を除いた実作業時間 */
   durationSec: number;
-  /** ポモドーロを最後まで終えたか（途中で止めて記録したものは false） */
+  /** 作業ブロックを最後まで終えたか（途中で止めて記録したもの・手動などは false）。画面には出さない */
   completed: boolean;
   note: string;
   deleted: boolean;
@@ -50,10 +87,7 @@ export type Session = {
 export type AlarmSound = 'chime' | 'bell' | 'beep';
 
 export type Settings = {
-  workMin: number;
-  shortBreakMin: number;
-  longBreakMin: number;
-  longBreakEvery: number;
+  /** 次のブロックに自動で進む */
   autoContinue: boolean;
   stopwatchCheckMin: number;
   sound: boolean;
@@ -61,51 +95,50 @@ export type Settings = {
   notification: boolean;
   weekStart: 'mon' | 'sun';
   dayBoundaryHour: number;
+  lastPresetId: string | null;
   lastBackupAt: string | null;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
-  workMin: 25,
-  shortBreakMin: 5,
-  longBreakMin: 15,
-  longBreakEvery: 4,
   autoContinue: false,
   stopwatchCheckMin: 180,
   sound: true,
   alarmSound: 'chime',
   notification: false,
   weekStart: 'mon',
-  dayBoundaryHour: 0,
+  dayBoundaryHour: 4,
+  lastPresetId: null,
   lastBackupAt: null,
 };
 
 /** タイマーの状態（再読み込みしても復帰できるよう保存する）。
  * 時間は「開始時刻と現在時刻の差 − 一時停止していた時間」で計算する。 */
 export type ActiveTimer = {
-  mode: 'pomodoro' | 'stopwatch';
-  phase: 'work' | 'shortBreak' | 'longBreak';
+  mode: 'timer' | 'stopwatch';
+  /** 選んでいるプリセット。実行中はこのプリセットを編集・削除できない */
+  presetId: string | null;
+  /** 今のブロックの番号（ストップウォッチは 0） */
+  blockIndex: number;
   taskId: string | null;
-  /** null = まだ開始していない（待機中） */
+  /** 今のブロックの開始時刻。null = 開始前の待機中 */
   startedAt: string | null;
   pausedAt: string | null;
   pausedTotalSec: number;
-  /** 完了したポモドーロの数（長い休憩のタイミングに使う） */
-  pomodoroCount: number;
-  /** 実行中フェーズの長さ。開始時の設定で固定する（ストップウォッチは 0） */
-  phaseDurationSec: number;
+  /** 今のブロックの長さ（ストップウォッチは 0） */
+  blockDurationSec: number;
   /** ストップウォッチの止め忘れ確認で「続ける」を選んだ時点の経過秒数 */
   checkedElapsedSec: number;
 };
 
 export const IDLE_TIMER: ActiveTimer = {
-  mode: 'pomodoro',
-  phase: 'work',
+  mode: 'timer',
+  presetId: null,
+  blockIndex: 0,
   taskId: null,
   startedAt: null,
   pausedAt: null,
   pausedTotalSec: 0,
-  pomodoroCount: 0,
-  phaseDurationSec: 0,
+  blockDurationSec: 0,
   checkedElapsedSec: 0,
 };
 
@@ -117,7 +150,10 @@ export const LIMITS = {
   projectName: 30,
   taskTitle: 60,
   note: 500,
-  maxEstimate: 99,
+  maxEstimateMin: 9999,
+  presetName: 30,
+  maxBlockMin: 720,
+  maxMinPerDay: 1440,
   /** これより短い記録は保存しない（秒） */
   minRecordSec: 60,
   /** 1 件の記録の最大の長さ（秒） */

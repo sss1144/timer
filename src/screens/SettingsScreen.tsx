@@ -1,12 +1,17 @@
 import { useEffect, useState } from 'react';
 import { useSettings } from '../db/hooks';
+import { PresetDialog } from '../components/PresetDialog';
+import type { TimerPreset } from '../db/types';
+import { getStatus } from '../timer/engine';
+import { presetSummary } from '../timer/presets';
+import { useTimerState } from '../timer/useTimerState';
 import { updateSettings } from '../db/repo';
 import type { AlarmSound, Settings } from '../db/types';
 import { Placeholder } from '../components/Placeholder';
 import { ALARM_LABEL, notificationSupported, playAlarm, requestNotificationPermission, unlockAudio } from '../timer/alarm';
 import { showToast } from '../timer/ui';
 
-type NumberKey = 'workMin' | 'shortBreakMin' | 'longBreakMin' | 'longBreakEvery' | 'stopwatchCheckMin';
+type NumberKey = 'stopwatchCheckMin';
 
 /** 数字の入力欄。入力中は自由に打てて、確定（フォーカスを外す）したときに範囲内に直して保存する */
 function NumberSetting({ settings, field, label, unit, min, max }: { settings: Settings; field: NumberKey; label: string; unit: string; min: number; max: number }) {
@@ -76,15 +81,13 @@ export function SettingsScreen() {
         <h1>設定</h1>
       </header>
 
+      <PresetSection />
+
       <section className="card settings">
-        <h2>ポモドーロ</h2>
-        <NumberSetting settings={s} field="workMin" label="作業" unit="分" min={1} max={180} />
-        <NumberSetting settings={s} field="shortBreakMin" label="短い休憩" unit="分" min={1} max={60} />
-        <NumberSetting settings={s} field="longBreakMin" label="長い休憩" unit="分" min={1} max={120} />
-        <NumberSetting settings={s} field="longBreakEvery" label="長い休憩までの回数" unit="回" min={1} max={12} />
+        <h2>ブロックタイマー</h2>
         <Toggle
-          label="連続モード"
-          hint="作業と休憩を自動で次に進めます"
+          label="次のブロックに自動で進む"
+          hint="オフのときは、ブロックが終わるたびに止まります"
           checked={s.autoContinue}
           onChange={v => void updateSettings({ autoContinue: v })}
         />
@@ -156,7 +159,41 @@ export function SettingsScreen() {
         </label>
       </section>
 
-      <Placeholder step={7} items={['JSON / CSV / Markdown の書き出しと JSON の読み込み', 'バックアップを促す表示']} />
+      <Placeholder step={9} items={['JSON / CSV / Markdown の書き出しと JSON の読み込み', 'バックアップを促す表示']} />
     </>
+  );
+}
+
+/* ---------- プリセットの管理 ---------- */
+
+function PresetSection() {
+  const { timer, presets } = useTimerState();
+  const [editing, setEditing] = useState<{ preset?: TimerPreset } | null>(null);
+  // タイマーの実行中（一時停止中を含む）は、使っているプリセットを編集・削除できない
+  const inUseId = timer && timer.mode === 'timer' && getStatus(timer) !== 'idle' ? timer.presetId : null;
+
+  return (
+    <section className="card settings">
+      <div className="section-head">
+        <h2>プリセット</h2>
+        <button className="btn sm" onClick={() => setEditing({})}>
+          ＋ プリセット
+        </button>
+      </div>
+      <ul className="preset-list">
+        {presets.map(p => (
+          <li key={p.id}>
+            <button className="preset-row" onClick={() => setEditing({ preset: p })} disabled={p.id === inUseId}>
+              <span className="preset-name">
+                {p.name}
+                {p.id === inUseId && <span className="badge">実行中のため編集できません</span>}
+              </span>
+              <span className="preset-summary">{presetSummary(p)}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      {editing && <PresetDialog preset={editing.preset} canDelete={presets.length > 1} onClose={() => setEditing(null)} />}
+    </section>
   );
 }

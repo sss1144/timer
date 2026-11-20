@@ -105,14 +105,12 @@ export type TaskTotal = {
   series: Series;
   deleted: boolean;
   sec: number;
-  pomodoros: number;
 };
 export type DayTotal = { day: string; sec: number; bySeries: Map<string, number> };
 
 export type Stats = {
   sessions: Session[];
   totalSec: number;
-  completedPomodoros: number;
   completedTasks: number;
   byDay: DayTotal[];
   bySeries: SeriesTotal[];
@@ -133,13 +131,10 @@ export function computeStats(sessions: Session[], tasks: Task[], projects: Proje
   const seriesMap = new Map<string, SeriesTotal>();
   const taskMap = new Map<string, TaskTotal>();
   let totalSec = 0;
-  let completedPomodoros = 0;
 
   for (const s of inPeriod) {
     const series = seriesOf(s.taskId);
     totalSec += s.durationSec;
-    const done = s.type === 'pomodoro' && s.completed;
-    if (done) completedPomodoros++;
 
     const day = byDayMap.get(dayKeyOf(new Date(s.startAt), boundaryHour))!;
     day.sec += s.durationSec;
@@ -154,9 +149,8 @@ export function computeStats(sessions: Session[], tasks: Task[], projects: Proje
     // 削除済みタスクは 1 行にまとめる
     const key = !s.taskId ? SERIES_UNCATEGORIZED : deleted ? SERIES_DELETED_TASK : s.taskId;
     const title = !s.taskId ? '未分類' : deleted ? '削除済みタスク' : task!.title;
-    const tt = taskMap.get(key) ?? { key, title, series, deleted, sec: 0, pomodoros: 0 };
+    const tt = taskMap.get(key) ?? { key, title, series, deleted, sec: 0 };
     tt.sec += s.durationSec;
-    if (done) tt.pomodoros++;
     taskMap.set(key, tt);
   }
 
@@ -172,7 +166,6 @@ export function computeStats(sessions: Session[], tasks: Task[], projects: Proje
   return {
     sessions: inPeriod,
     totalSec,
-    completedPomodoros,
     completedTasks,
     byDay: period.days.map(d => byDayMap.get(d)!),
     bySeries,

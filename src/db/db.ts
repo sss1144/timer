@@ -1,6 +1,7 @@
 import Dexie, { type Table } from 'dexie';
-import type { ActiveTimer, Project, Session, Settings, Task } from './types';
+import type { ActiveTimer, Project, Session, Settings, Task, TimerPreset } from './types';
 import { LEGACY_COLOR_MAP } from '../lib/colors';
+import { makeDefaultPresets, migrateToV3 } from './migrations';
 
 /** 設定と実行中タイマーのように 1 件だけ持つデータの置き場所 */
 export type KvRow =
@@ -11,6 +12,7 @@ export class AppDB extends Dexie {
   projects!: Table<Project, string>;
   tasks!: Table<Task, string>;
   sessions!: Table<Session, string>;
+  presets!: Table<TimerPreset, string>;
   kv!: Table<KvRow, string>;
 
   constructor(name = 'work-timer') {
@@ -31,6 +33,13 @@ export class AppDB extends Dexie {
           if (next) p.color = next;
         }),
     );
+    // v3: ポモドーロタイマーをブロック式に変える（requirements.md 13 章）
+    this.version(3).stores({ presets: 'id, createdAt' }).upgrade(migrateToV3);
+
+    // 新しく使い始めたときは、初期のプリセットを入れる
+    this.on('populate', tx => {
+      void tx.table('presets').bulkAdd(makeDefaultPresets());
+    });
   }
 }
 

@@ -3,14 +3,8 @@ import { createStore } from '../lib/store';
 import { formatDuration } from '../lib/time';
 import type { Session, Settings } from '../db/types';
 import type { ActionResult } from './actions';
-import type { Phase } from './engine';
 import { playAlarm, showNotification } from './alarm';
-
-export const PHASE_LABEL: Record<Phase, string> = {
-  work: '作業',
-  shortBreak: '短い休憩',
-  longBreak: '長い休憩',
-};
+import { describeBlock } from './presets';
 
 /* ---------- 画面下に少しだけ出すお知らせ ---------- */
 
@@ -39,15 +33,10 @@ export function handleResult(result: ActionResult, settings: Settings): void {
   const liveEvent = result.events.filter(e => e.live).at(-1);
   if (liveEvent) {
     if (settings.sound) playAlarm(settings.alarmSound);
-    const next = result.timer.phase;
-    if (liveEvent.kind === 'workDone') {
-      const body = `${PHASE_LABEL[next]}に入りましょう`;
-      showToast(`ポモドーロ完了！${last ? `${formatDuration(last.durationSec)}を記録しました。` : ''}`);
-      if (settings.notification) void showNotification('ポモドーロ完了', body);
-    } else {
-      showToast('休憩終了。次の作業を始めましょう');
-      if (settings.notification) void showNotification('休憩終了', '次の作業を始めましょう');
-    }
+    const title = liveEvent.kind === 'work' ? '作業ブロック終了' : '休憩終了';
+    const next = nextText(result);
+    showToast(`${title}！${last ? `${formatDuration(last.durationSec)}を記録しました。` : ''}${next}`);
+    if (settings.notification) void showNotification(title, next);
     return;
   }
 
@@ -56,6 +45,17 @@ export function handleResult(result: ActionResult, settings: Settings): void {
   } else if (last) {
     showToast(`${formatDuration(last.durationSec)}を記録しました`);
   }
+}
+
+/** ブロックが終わったあとの案内（次のブロック、または終わり） */
+function nextText(result: ActionResult): string {
+  const { timer, plan } = result;
+  if (!plan || timer.mode !== 'timer') return '';
+  // 1 回だけのプリセットが最後まで終わって、最初の開始前に戻った
+  if (!plan.repeat && !timer.startedAt && timer.blockIndex === 0) return 'プリセットが最後まで終わりました';
+  const block = plan.blocks[timer.blockIndex];
+  if (!block) return '';
+  return timer.startedAt ? `${describeBlock(block)}が始まりました` : `次は${describeBlock(block)}です`;
 }
 
 /** 一定間隔で現在時刻を返す（active のときだけ再描画する） */

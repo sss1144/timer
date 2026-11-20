@@ -1,30 +1,31 @@
 /* タイマーの計算（画面やデータベースに依存しない純粋な関数だけを置く。自動テストの対象）
  *
+ * - ブロック式タイマー：プリセットに並んだ作業・休憩のブロックを順に進める。作業ブロックが終わったら 1 件記録する
  * - 時間は「開始時刻と現在時刻の差 − 一時停止していた時間」で計算する。1 秒ずつ数えないので、
  *   画面を閉じたり再読み込みしても時間がずれない。
  * - 関数はすべて新しい状態を返し、渡された状態は書き換えない。
  * - now はミリ秒（Date.now() の値）。 */
 
-import { LIMITS, type ActiveTimer, type Session, type Settings } from '../db/types';
+import { LIMITS, type ActiveTimer, type BlockKind, type Session, type Settings, type TimerBlock } from '../db/types';
 import { toIsoLocal } from '../lib/time';
 
-export type TimerSettings = Pick<
-  Settings,
-  'workMin' | 'shortBreakMin' | 'longBreakMin' | 'longBreakEvery' | 'autoContinue' | 'stopwatchCheckMin'
->;
+export type TimerSettings = Pick<Settings, 'autoContinue' | 'stopwatchCheckMin'>;
+
+/** タイマーが使うプリセットの中身 */
+export type PresetPlan = { blocks: TimerBlock[]; repeat: boolean };
 
 /** これより短い記録は保存しない */
 export const MIN_RECORD_SEC = LIMITS.minRecordSec;
-/** 終了予定からこの時間以内に気づいた場合を「その場で終わった」とみなす（音・通知・連続モード） */
+/** 終了予定からこの時間以内に気づいた場合を「その場で終わった」とみなす（音・通知・自動で進む） */
 export const LIVE_GRACE_MS = 60_000;
 
 export type TimerStatus = 'idle' | 'running' | 'paused';
-export type Phase = ActiveTimer['phase'];
 
 /** 保存する前の記録 */
 export type SessionDraft = Pick<Session, 'taskId' | 'type' | 'startAt' | 'endAt' | 'durationSec' | 'completed'>;
 
-export type TimerEvent = { kind: 'workDone' | 'breakDone'; at: number; live: boolean };
+/** ブロックが時間どおりに終わった。live = その場で気づいた（閉じている間に終わったのではない） */
+export type TimerEvent = { kind: BlockKind; at: number; live: boolean };
 
 export type TimerChange = {
   timer: ActiveTimer;
@@ -43,8 +44,6 @@ export function getStatus(t: ActiveTimer): TimerStatus {
   return t.pausedAt ? 'paused' : 'running';
 }
 
-export const isBreak = (phase: Phase) => phase !== 'work';
-
 /** 一時停止を除いた経過時間 */
 export function elapsedMs(t: ActiveTimer, now: number): number {
   if (!t.startedAt) return 0;
@@ -52,44 +51,54 @@ export function elapsedMs(t: ActiveTimer, now: number): number {
   return Math.max(0, end - toMs(t.startedAt) - t.pausedTotalSec * 1000);
 }
 
-export function phaseSeconds(phase: Phase, s: TimerSettings): number {
-  const min = phase === 'work' ? s.workMin : phase === 'shortBreak' ? s.shortBreakMin : s.longBreakMin;
-  return Math.round(min * 60);
+/** 今のブロック（ストップウォッチやプリセットがない場合は undefined） */
+export function currentBlock(t: ActiveTimer, plan: PresetPlan | null): TimerBlock | undefined {
+  return t.mode === 'timer' ? plan?.blocks[t.blockIndex] : undefined;
 }
 
-/** ポモドーロの今のフェーズの長さ（開始前は設定の値、開始後は開始時に固定した値） */
-export function phaseDurationMs(t: ActiveTimer, s: TimerSettings): number {
-  return (t.startedAt ? t.phaseDurationSec : phaseSeconds(t.phase, s)) * 1000;
+/** 記録の対象になる作業中か（休憩ブロックは記録しない） */
+export function isRecording(t: ActiveTimer, plan: PresetPlan | null): boolean {
+  return t.mode === 'stopwatch' || currentBlock(t, plan)?.kind === 'work';
 }
 
-export function remainingMs(t: ActiveTimer, now: number, s: TimerSettings): number {
-  return Math.max(0, phaseDurationMs(t, s) - elapsedMs(t, now));
+/** 今のブロックの長さ（開始前はプリセットの値、開始後は開始時に固定した値） */
+export function blockDurationMs(t: ActiveTimer, plan: PresetPlan | null): number {
+  if (t.mode !== 'timer') return 0;
+  return (t.startedAt ? t.blockDurationSec : (currentBlock(t, plan)?.min ?? 0) * 60) * 1000;
 }
 
-/** 今のフェーズが終わる時刻（実行中のポモドーロのみ） */
-function phaseEndMs(t: ActiveTimer): number | null {
-  if (t.mode !== 'pomodoro' || !t.startedAt || t.pausedAt) return null;
-  return toMs(t.startedAt) + t.pausedTotalSec * 1000 + t.phaseDurationSec * 1000;
+export function remainingMs(t: ActiveTimer, now: number, plan: PresetPlan | null): number {
+  return Math.max(0, blockDurationMs(t, plan) - elapsedMs(t, now));
 }
 
-/** 記録の対象になる作業中か（休憩中は記録しない） */
-export const isRecording = (t: ActiveTimer) => t.mode === 'stopwatch' || t.phase === 'work';
+/** 次のブロック。「1 回だけ」のプリセットで最後のブロックなら null（終わり） */
+export function nextIndex(index: number, plan: PresetPlan): number | null {
+  if (index + 1 < plan.blocks.length) return index + 1;
+  return plan.repeat ? 0 : null;
+}
+
+/** 今のブロックが終わる時刻（実行中のブロック式のみ） */
+function blockEndMs(t: ActiveTimer): number | null {
+  if (t.mode !== 'timer' || !t.startedAt || t.pausedAt) return null;
+  return toMs(t.startedAt) + t.pausedTotalSec * 1000 + t.blockDurationSec * 1000;
+}
 
 /* ---------- 状態を作る ---------- */
 
-function idleAt(t: ActiveTimer, phase: Phase, pomodoroCount = t.pomodoroCount): ActiveTimer {
-  return { ...t, phase, pomodoroCount, startedAt: null, pausedAt: null, pausedTotalSec: 0, phaseDurationSec: 0, checkedElapsedSec: 0 };
+/** ブロックの開始前（待機中）にする */
+function idleAt(t: ActiveTimer, blockIndex: number): ActiveTimer {
+  return { ...t, blockIndex, startedAt: null, pausedAt: null, pausedTotalSec: 0, blockDurationSec: 0, checkedElapsedSec: 0 };
 }
 
-function runningFrom(t: ActiveTimer, phase: Phase, fromMs: number, s: TimerSettings, pomodoroCount = t.pomodoroCount): ActiveTimer {
-  return { ...idleAt(t, phase, pomodoroCount), startedAt: iso(fromMs), phaseDurationSec: phaseSeconds(phase, s) };
+function runningFrom(t: ActiveTimer, blockIndex: number, fromMs: number, plan: PresetPlan): ActiveTimer {
+  return { ...idleAt(t, blockIndex), startedAt: iso(fromMs), blockDurationSec: (plan.blocks[blockIndex]?.min ?? 0) * 60 };
 }
 
-function makeDraft(t: ActiveTimer, endMs: number, durationMs: number, completed: boolean): SessionDraft | null {
-  if (!t.startedAt || !isRecording(t) || durationMs < MIN_RECORD_SEC * 1000) return null;
+function makeDraft(t: ActiveTimer, plan: PresetPlan | null, endMs: number, durationMs: number, completed: boolean): SessionDraft | null {
+  if (!t.startedAt || !isRecording(t, plan) || durationMs < MIN_RECORD_SEC * 1000) return null;
   return {
     taskId: t.taskId,
-    type: t.mode === 'pomodoro' ? 'pomodoro' : 'stopwatch',
+    type: t.mode === 'timer' ? 'timer' : 'stopwatch',
     startAt: t.startedAt,
     endAt: iso(endMs),
     durationSec: Math.round(durationMs / 1000),
@@ -97,12 +106,26 @@ function makeDraft(t: ActiveTimer, endMs: number, durationMs: number, completed:
   };
 }
 
+/** 途中で止めたときの記録の長さと終了時刻（ブロックの長さを超えない） */
+function partial(t: ActiveTimer, now: number): { endMs: number; duration: number } {
+  const endMs = t.pausedAt ? toMs(t.pausedAt) : now;
+  let duration = elapsedMs(t, now);
+  if (t.mode === 'timer') duration = Math.min(duration, t.blockDurationSec * 1000);
+  return { endMs, duration };
+}
+
 /* ---------- 操作 ---------- */
 
 /** モード切り替え（開始前のみ） */
 export function setMode(t: ActiveTimer, mode: ActiveTimer['mode']): ActiveTimer {
   if (getStatus(t) !== 'idle' || t.mode === mode) return t;
-  return idleAt({ ...t, mode }, 'work');
+  return idleAt({ ...t, mode }, 0);
+}
+
+/** プリセットの選択（開始前のみ。最初のブロックから） */
+export function setPreset(t: ActiveTimer, presetId: string | null): ActiveTimer {
+  if (getStatus(t) !== 'idle' || t.presetId === presetId) return t;
+  return idleAt({ ...t, presetId }, 0);
 }
 
 /** タスクの選択（開始前のみ。null = 未分類） */
@@ -111,16 +134,14 @@ export function setTask(t: ActiveTimer, taskId: string | null): ActiveTimer {
   return { ...t, taskId };
 }
 
-export function start(t: ActiveTimer, now: number, s: TimerSettings): ActiveTimer {
+export function start(t: ActiveTimer, now: number, plan: PresetPlan | null): ActiveTimer {
   if (getStatus(t) !== 'idle') return t;
-  return {
-    ...t,
-    startedAt: iso(now),
-    pausedAt: null,
-    pausedTotalSec: 0,
-    phaseDurationSec: t.mode === 'pomodoro' ? phaseSeconds(t.phase, s) : 0,
-    checkedElapsedSec: 0,
-  };
+  if (t.mode === 'timer') {
+    if (!plan || plan.blocks.length === 0) return t;
+    const index = t.blockIndex < plan.blocks.length ? t.blockIndex : 0;
+    return runningFrom(t, index, now, plan);
+  }
+  return { ...idleAt(t, 0), startedAt: iso(now) };
 }
 
 export function pause(t: ActiveTimer, now: number): ActiveTimer {
@@ -133,45 +154,53 @@ export function resume(t: ActiveTimer, now: number): ActiveTimer {
   return { ...t, pausedAt: null, pausedTotalSec: t.pausedTotalSec + Math.max(0, now - toMs(t.pausedAt)) / 1000 };
 }
 
-/** 停止。record = true なら作業時間を記録する（1 分未満は記録しない）。休憩中は記録せず作業の待機に戻る */
-export function stop(t: ActiveTimer, now: number, record: boolean): TimerChange {
+/** 停止。record = true なら作業時間を記録する（1 分未満と休憩は記録しない）。最初のブロックの開始前に戻る */
+export function stop(t: ActiveTimer, now: number, plan: PresetPlan | null, record: boolean): TimerChange {
   if (getStatus(t) === 'idle') return unchanged(t);
-  const endMs = t.pausedAt ? toMs(t.pausedAt) : now;
-  let duration = elapsedMs(t, now);
-  if (t.mode === 'pomodoro') duration = Math.min(duration, t.phaseDurationSec * 1000);
-  const draft = record ? makeDraft(t, endMs, duration, false) : null;
-  return { timer: idleAt(t, 'work'), drafts: draft ? [draft] : [], events: [] };
+  const { endMs, duration } = partial(t, now);
+  const draft = record ? makeDraft(t, plan, endMs, duration, false) : null;
+  return { timer: idleAt(t, 0), drafts: draft ? [draft] : [], events: [] };
 }
 
-/** 休憩をスキップして作業へ（連続モードなら作業をすぐ始める） */
-export function skipBreak(t: ActiveTimer, now: number, s: TimerSettings): ActiveTimer {
-  if (t.mode !== 'pomodoro' || !isBreak(t.phase)) return t;
-  return s.autoContinue ? runningFrom(t, 'work', now, s) : idleAt(t, 'work');
+/** 今のブロックをスキップして次へ。
+ * - 開始前なら、待機するブロックを次へ送るだけ
+ * - 作業ブロックの途中なら record に従って記録する
+ * - 動いていて「自動で進む」がオンなら次のブロックをすぐ始め、そうでなければ次のブロックの開始前で待つ
+ * - 「1 回だけ」のプリセットの最後のブロックなら、最初のブロックの開始前に戻る */
+export function skip(t: ActiveTimer, now: number, plan: PresetPlan | null, s: TimerSettings, record: boolean): TimerChange {
+  if (t.mode !== 'timer' || !plan || plan.blocks.length === 0) return unchanged(t);
+  const status = getStatus(t);
+  const next = nextIndex(t.blockIndex, plan);
+  if (status === 'idle') return { timer: idleAt(t, next ?? 0), drafts: [], events: [] };
+
+  const { endMs, duration } = partial(t, now);
+  const draft = record ? makeDraft(t, plan, endMs, duration, false) : null;
+  const timer = next === null ? idleAt(t, 0) : s.autoContinue ? runningFrom(t, next, now, plan) : idleAt(t, next);
+  return { timer, drafts: draft ? [draft] : [], events: [] };
 }
 
-/** 時間になったフェーズを終わらせる。画面を閉じていた間に終わった分もまとめて処理する。
- * - 作業が終わったら 1 件記録し、休憩へ（連続モードなら終了時刻から休憩を始める）
- * - 休憩が終わったら作業の待機へ。連続モードでも、その場で気づいた場合だけ作業を自動で始める
- *   （閉じている間に作業の記録が勝手に何件も増えないように） */
-export function advance(t: ActiveTimer, now: number, s: TimerSettings): TimerChange {
+/** 時間になったブロックを終わらせる。画面を閉じていた間に終わった分もまとめて処理する。
+ * - 作業ブロックが終わったら 1 件記録する（休憩は記録しない）
+ * - 「自動で進む」がオンで、その場で気づいた場合だけ、終了時刻から次のブロックを始める。
+ *   閉じている間に終わった場合は次のブロックの開始前で止める（記録が勝手に増えないように）
+ * - 「1 回だけ」のプリセットの最後のブロックが終わったら、最初のブロックの開始前に戻る */
+export function advance(t: ActiveTimer, now: number, plan: PresetPlan | null, s: TimerSettings): TimerChange {
   let cur = t;
   const drafts: SessionDraft[] = [];
   const events: TimerEvent[] = [];
-  for (let guard = 0; guard < 100; guard++) {
-    const endMs = phaseEndMs(cur);
+  if (!plan || plan.blocks.length === 0) return unchanged(t);
+  for (let guard = 0; guard < 200; guard++) {
+    const endMs = blockEndMs(cur);
     if (endMs === null || endMs > now) break;
     const live = now - endMs < LIVE_GRACE_MS;
-    if (cur.phase === 'work') {
-      const draft = makeDraft(cur, endMs, cur.phaseDurationSec * 1000, true);
-      if (draft) drafts.push(draft);
-      const count = cur.pomodoroCount + 1;
-      const next: Phase = count % Math.max(1, s.longBreakEvery) === 0 ? 'longBreak' : 'shortBreak';
-      cur = s.autoContinue ? runningFrom(cur, next, endMs, s, count) : idleAt(cur, next, count);
-      events.push({ kind: 'workDone', at: endMs, live });
-    } else {
-      cur = s.autoContinue && live ? runningFrom(cur, 'work', endMs, s) : idleAt(cur, 'work');
-      events.push({ kind: 'breakDone', at: endMs, live });
-    }
+    const block = currentBlock(cur, plan);
+    const draft = makeDraft(cur, plan, endMs, cur.blockDurationSec * 1000, true);
+    if (draft) drafts.push(draft);
+    events.push({ kind: block?.kind ?? 'work', at: endMs, live });
+    const next = nextIndex(cur.blockIndex, plan);
+    if (next === null) cur = idleAt(cur, 0);
+    else if (s.autoContinue && live) cur = runningFrom(cur, next, endMs, plan);
+    else cur = idleAt(cur, next);
   }
   return { timer: cur, drafts, events };
 }
@@ -197,8 +226,8 @@ export function stopAtCheckpoint(t: ActiveTimer, now: number, s: TimerSettings):
   if (t.mode !== 'stopwatch' || getStatus(t) === 'idle') return unchanged(t);
   const point = checkpointSec(t, s) * 1000;
   const elapsed = elapsedMs(t, now);
-  if (elapsed < point) return stop(t, now, true);
+  if (elapsed < point) return stop(t, now, null, true);
   const endMs = (t.pausedAt ? toMs(t.pausedAt) : now) - (elapsed - point);
-  const draft = makeDraft(t, endMs, point, false);
-  return { timer: idleAt(t, 'work'), drafts: draft ? [draft] : [], events: [] };
+  const draft = makeDraft(t, null, endMs, point, false);
+  return { timer: idleAt(t, 0), drafts: draft ? [draft] : [], events: [] };
 }

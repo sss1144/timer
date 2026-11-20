@@ -1,16 +1,15 @@
 import { displayColor, NEUTRAL_COLOR } from '../lib/colors';
 import type { Project, Session, Task } from './types';
 
-export type TaskSummary = { totalSec: number; completedPomodoros: number };
+export type TaskSummary = { totalSec: number };
 
-/** タスクごとの合計作業時間と完了ポモドーロ数（削除済みの記録は数えない） */
+/** タスクごとの合計作業時間（削除済みの記録は数えない） */
 export function summarizeByTask(sessions: Session[]): Map<string | null, TaskSummary> {
   const map = new Map<string | null, TaskSummary>();
   for (const s of sessions) {
     if (s.deleted) continue;
-    const cur = map.get(s.taskId) ?? { totalSec: 0, completedPomodoros: 0 };
+    const cur = map.get(s.taskId) ?? { totalSec: 0 };
     cur.totalSec += s.durationSec;
-    if (s.type === 'pomodoro' && s.completed) cur.completedPomodoros += 1;
     map.set(s.taskId, cur);
   }
   return map;
@@ -101,7 +100,7 @@ export function findOverlaps(sessions: Session[], candidate: { id?: string; star
 }
 
 export const SESSION_TYPE_LABEL: Record<Session['type'], string> = {
-  pomodoro: 'ポモドーロ',
+  timer: 'タイマー',
   stopwatch: 'ストップウォッチ',
   manual: '手動',
 };

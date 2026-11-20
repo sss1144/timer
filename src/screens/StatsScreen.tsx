@@ -136,10 +136,6 @@ function Tiles({ stats, prev, kind, elapsedDays }: { stats: Stats; prev: Stats |
         {delta && <span className="tile-sub">{delta}</span>}
       </div>
       <div className="tile">
-        <span className="tile-label">完了ポモドーロ</span>
-        <span className="tile-value">🍅 {stats.completedPomodoros}</span>
-      </div>
-      <div className="tile">
         <span className="tile-label">完了タスク</span>
         <span className="tile-value">{stats.completedTasks} 件</span>
       </div>
@@ -212,7 +208,6 @@ function TaskList({ stats }: { stats: Stats }) {
               <span className={t.deleted ? 'muted' : undefined}>{t.title}</span>
               {t.key !== 'uncategorized' && !t.deleted && <span className="muted small"> {t.series.name}</span>}
             </span>
-            {t.pomodoros > 0 && <span className="rank-pomo">🍅 {t.pomodoros}</span>}
             <span className="rank-time">{formatDuration(t.sec)}</span>
           </li>
         ))}

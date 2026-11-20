@@ -15,7 +15,7 @@ type Props = {
 export function TaskDialog({ task, projects, defaultProjectId, onClose }: Props) {
   const [title, setTitle] = useState(task?.title ?? '');
   const [projectId, setProjectId] = useState(task?.projectId ?? defaultProjectId ?? '');
-  const [estimate, setEstimate] = useState(task?.estimatedPomodoros?.toString() ?? '');
+  const [estimate, setEstimate] = useState(task?.estimatedMin?.toString() ?? '');
   const [dueDate, setDueDate] = useState(task?.dueDate ?? '');
   const [note, setNote] = useState(task?.note ?? '');
   const [error, setError] = useState('');
@@ -29,7 +29,7 @@ export function TaskDialog({ task, projects, defaultProjectId, onClose }: Props)
     const input = {
       title,
       projectId: projectId || null,
-      estimatedPomodoros: estimate === '' ? null : Number(estimate),
+      estimatedMin: estimate === '' ? null : Number(estimate),
       dueDate: dueDate || null,
       note,
     };
@@ -72,8 +72,8 @@ export function TaskDialog({ task, projects, defaultProjectId, onClose }: Props)
 
         <div className="form-row">
           <label className="form-field">
-            <span>見積もりポモドーロ数（任意）</span>
-            <input type="number" inputMode="numeric" min={1} max={LIMITS.maxEstimate} value={estimate} onChange={e => setEstimate(e.target.value)} placeholder="例: 4" />
+            <span>見積もり時間（分・任意）</span>
+            <input type="number" inputMode="numeric" min={1} max={LIMITS.maxEstimateMin} value={estimate} onChange={e => setEstimate(e.target.value)} placeholder="例: 120" />
           </label>
           <label className="form-field">
             <span>期限（任意）</span>
