@@ -16,8 +16,9 @@ export type PresetPlan = { blocks: TimerBlock[]; repeat: boolean };
 
 /** これより短い記録は保存しない */
 export const MIN_RECORD_SEC = LIMITS.minRecordSec;
-/** 終了予定からこの時間以内に気づいた場合を「その場で終わった」とみなす（音・通知・自動で進む） */
-export const LIVE_GRACE_MS = 60_000;
+/** 終了予定からこの時間以内に気づいた場合を「その場で終わった」とみなす（通知・自動で進む）。
+ * 画面が隠れていると、ページのタイマーは最大 1 分ほど遅れるため 2 分にする */
+export const LIVE_GRACE_MS = 120_000;
 
 export type TimerStatus = 'idle' | 'running' | 'paused';
 
@@ -203,6 +204,32 @@ export function advance(t: ActiveTimer, now: number, plan: PresetPlan | null, s:
     else cur = idleAt(cur, next);
   }
   return { timer: cur, drafts, events };
+}
+
+/* ---------- 音の予約 ---------- */
+
+export type BlockEnd = { at: number; kind: BlockKind };
+
+/** これから終わるブロックの時刻と種類（音の予約用）。
+ * 「自動で進む」がオンなら、続くブロックも同じ流れで進むので、先の分（horizonMs 以内）もまとめて返す。
+ * 一時停止中・開始前・ストップウォッチは空 */
+export function upcomingBlockEnds(t: ActiveTimer, now: number, plan: PresetPlan | null, s: TimerSettings, horizonMs = 24 * 3600_000): BlockEnd[] {
+  let end = blockEndMs(t);
+  if (end === null || !plan || plan.blocks.length === 0) return [];
+  const out: BlockEnd[] = [];
+  let index = t.blockIndex;
+  for (let guard = 0; guard < 200; guard++) {
+    const block = plan.blocks[index];
+    if (!block) break;
+    if (end > now) out.push({ at: end, kind: block.kind });
+    if (!s.autoContinue) break;
+    const next = nextIndex(index, plan);
+    if (next === null) break;
+    index = next;
+    end += plan.blocks[index].min * 60_000;
+    if (end - now > horizonMs) break;
+  }
+  return out;
 }
 
 /* ---------- ストップウォッチの止め忘れ確認 ---------- */

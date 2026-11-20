@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   advance,
+  upcomingBlockEnds,
   blockDurationMs,
   continueAfterCheck,
   elapsedMs,
@@ -243,5 +244,38 @@ describe('ストップウォッチの止め忘れ確認', () => {
     expect(r.drafts[0].durationSec).toBe(180 * 60);
     expect(ms(r.drafts[0].endAt)).toBe(at(210));
     expect(getStatus(r.timer)).toBe('idle');
+  });
+});
+
+describe('音の予約（これから終わるブロック）', () => {
+  it('動いている今のブロックの終わり。自動で進まないなら 1 つだけ', () => {
+    const t = start(timer(), at(0), POMODORO);
+    expect(upcomingBlockEnds(t, at(10), POMODORO, S)).toEqual([{ at: at(25), kind: 'work' }]);
+  });
+
+  it('一時停止中・開始前・ストップウォッチは予約しない。再開したら残りの時間で', () => {
+    const t = pause(start(timer(), at(0), POMODORO), at(10));
+    expect(upcomingBlockEnds(t, at(12), POMODORO, S)).toEqual([]);
+    expect(upcomingBlockEnds(timer(), at(0), POMODORO, S)).toEqual([]);
+    expect(upcomingBlockEnds(start(stopwatch(), at(0), null), at(1), null, S)).toEqual([]);
+    expect(upcomingBlockEnds(resume(t, at(20)), at(20), POMODORO, S)).toEqual([{ at: at(35), kind: 'work' }]);
+  });
+
+  it('自動で進むなら、続くブロックの終わりもまとめて（繰り返すプリセットは指定の時間まで）', () => {
+    const t = start(timer({ blockIndex: 6 }), at(0), POMODORO); // 作業25 → 休憩20 → 最初に戻って 作業25 …
+    const ends = upcomingBlockEnds(t, at(0), POMODORO, AUTO, 60 * MIN);
+    expect(ends).toEqual([
+      { at: at(25), kind: 'work' },
+      { at: at(45), kind: 'break' },
+    ]);
+  });
+
+  it('1 回だけのプリセットは最後のブロックで終わり', () => {
+    const t = start(timer(), at(0), SHORT);
+    expect(upcomingBlockEnds(t, at(0), SHORT, AUTO).map(e => [e.at, e.kind])).toEqual([
+      [at(10), 'work'],
+      [at(15), 'break'],
+      [at(25), 'work'],
+    ]);
   });
 });

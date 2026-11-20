@@ -6,8 +6,8 @@ import type { Route } from '../lib/route';
 import { ROUTE_LABEL } from '../components/Nav';
 import { Dialog } from '../components/Dialog';
 import * as actions from './actions';
-import { checkpointSec, currentBlock, elapsedMs, getStatus, isCheckDue, isRecording, remainingMs } from './engine';
-import { playAlarm, showNotification, unlockAudio } from './alarm';
+import { checkpointSec, currentBlock, elapsedMs, getStatus, isCheckDue, isRecording, remainingMs, upcomingBlockEnds } from './engine';
+import { audioRunningStore, playSoundNow, scheduleSound, showNotification, unlockAudio, type ScheduledSound } from './alarm';
 import { checkPromptStore, handleResult, showToast, useNow } from './ui';
 import { BLOCK_LABEL } from './presets';
 import { useTimerState } from './useTimerState';
@@ -17,7 +17,8 @@ import { useTimerState } from './useTimerState';
  * - ストップウォッチの止め忘れ確認を出す
  * - ブラウザのタブ名に残り時間を出す
  * - タイマー中は画面が消えないようにする
- * - スペースキーで開始・一時停止・再開する */
+ * - スペースキーで開始・一時停止・再開する
+ * - ブロックの終了時刻に鳴る音を予約する（画面が隠れていても時間どおりに鳴らすため） */
 export function TimerRunner({ route }: { route: Route }) {
   const { timer, settings, plan } = useTimerState();
   const tasks = useTasks();
@@ -48,7 +49,31 @@ export function TimerRunner({ route }: { route: Route }) {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // 時間になったら次のブロックへ（記録・アラーム）
+  // クリック・キー操作のたびに音を鳴らせる状態にする（ブラウザの仕組みで、操作の前は音を出せないことがある）
+  useEffect(() => {
+    const unlock = () => unlockAudio();
+    window.addEventListener('pointerdown', unlock, true);
+    window.addEventListener('keydown', unlock, true);
+    return () => {
+      window.removeEventListener('pointerdown', unlock, true);
+      window.removeEventListener('keydown', unlock, true);
+    };
+  }, []);
+
+  // 音の予約：ブロックを開始・再開した時点で、終了時刻に鳴る音を予約する。状態が変わったら取り消して予約し直す
+  const audioRunning = useStore(audioRunningStore);
+  useEffect(() => {
+    if (!timer || !settings.sound || !audioRunning) return;
+    const scheduled: ScheduledSound[] = [];
+    for (const end of upcomingBlockEnds(timer, Date.now(), plan, settings)) {
+      const soundId = end.kind === 'work' ? settings.workEndSound : settings.workStartSound;
+      const handle = scheduleSound(soundId, settings.volume, end.at);
+      if (handle) scheduled.push(handle);
+    }
+    return () => scheduled.forEach(h => h.cancel());
+  }, [timer, plan, settings, audioRunning]);
+
+  // 時間になったら次のブロックへ（記録・通知）
   useEffect(() => {
     if (!timer || status !== 'running' || busy.current) return;
     if (timer.mode === 'timer' && remainingMs(timer, now, plan) <= 0) {
@@ -64,7 +89,7 @@ export function TimerRunner({ route }: { route: Route }) {
       checkPromptStore.set(true);
       // 確認時点から時間がたっていなければ（その場で気づいたなら）音と通知で知らせる
       if (elapsedMs(timer, now) - checkpointSec(timer, settings) * 1000 < 60_000) {
-        if (settings.sound) playAlarm(settings.alarmSound);
+        if (settings.sound) void playSoundNow(settings.workEndSound, settings.volume);
         if (settings.notification) void showNotification('まだ作業中ですか？', 'ストップウォッチが動き続けています');
       }
     }

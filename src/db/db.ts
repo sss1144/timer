@@ -1,7 +1,7 @@
 import Dexie, { type Table } from 'dexie';
 import type { ActiveTimer, Project, Session, Settings, Task, TimerPreset } from './types';
 import { LEGACY_COLOR_MAP } from '../lib/colors';
-import { makeDefaultPresets, migrateToV3 } from './migrations';
+import { makeDefaultPresets, migrateToV3, migrateToV4 } from './migrations';
 
 /** 設定と実行中タイマーのように 1 件だけ持つデータの置き場所 */
 export type KvRow =
@@ -35,6 +35,8 @@ export class AppDB extends Dexie {
     );
     // v3: ポモドーロタイマーをブロック式に変える（requirements.md 13 章）
     this.version(3).stores({ presets: 'id, createdAt' }).upgrade(migrateToV3);
+    // v4: アラーム音を「作業終了の音」「作業開始の音」に分け、音量を足す
+    this.version(4).upgrade(migrateToV4);
 
     // 新しく使い始めたときは、初期のプリセットを入れる
     this.on('populate', tx => {

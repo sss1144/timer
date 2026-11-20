@@ -6,9 +6,10 @@ import { getStatus } from '../timer/engine';
 import { presetSummary } from '../timer/presets';
 import { useTimerState } from '../timer/useTimerState';
 import { updateSettings } from '../db/repo';
-import type { AlarmSound, Settings } from '../db/types';
+import type { Settings } from '../db/types';
 import { Placeholder } from '../components/Placeholder';
-import { ALARM_LABEL, notificationSupported, playAlarm, requestNotificationPermission, unlockAudio } from '../timer/alarm';
+import { notificationSupported, playSoundNow, requestNotificationPermission } from '../timer/alarm';
+import { SOUNDS } from '../timer/sounds';
 import { showToast } from '../timer/ui';
 
 type NumberKey = 'stopwatchCheckMin';
@@ -100,29 +101,10 @@ export function SettingsScreen() {
 
       <section className="card settings">
         <h2>音・通知</h2>
-        <Toggle label="終了時にアラーム音を鳴らす" checked={s.sound} onChange={v => void updateSettings({ sound: v })} />
-        <label className="setting-row">
-          <span>アラーム音</span>
-          <span className="setting-input">
-            <select value={s.alarmSound} onChange={e => void updateSettings({ alarmSound: e.target.value as AlarmSound })}>
-              {(Object.keys(ALARM_LABEL) as AlarmSound[]).map(k => (
-                <option key={k} value={k}>
-                  {ALARM_LABEL[k]}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className="btn sm"
-              onClick={() => {
-                unlockAudio();
-                playAlarm(s.alarmSound);
-              }}
-            >
-              試聴
-            </button>
-          </span>
-        </label>
+        <Toggle label="ブロックが終わったら音を鳴らす" checked={s.sound} onChange={v => void updateSettings({ sound: v })} />
+        <VolumeSetting settings={s} />
+        <SoundSetting settings={s} field="workEndSound" label="作業終了の音" hint="作業ブロックが終わったとき" />
+        <SoundSetting settings={s} field="workStartSound" label="作業開始の音" hint="休憩ブロックが終わったとき" />
         <Toggle
           label="ブラウザの通知を出す"
           hint="アプリを開いている間だけ届きます"
@@ -159,7 +141,16 @@ export function SettingsScreen() {
         </label>
       </section>
 
-      <Placeholder step={9} items={['JSON / CSV / Markdown の書き出しと JSON の読み込み', 'バックアップを促す表示']} />
+      <Placeholder step={9} items={['自動バックアップ（決めたフォルダへ）', 'JSON / CSV / Markdown の書き出しと、JSON からの復元', 'バックアップを促す表示']} />
+
+      <section className="card settings usage-notes">
+        <h2>使い方の注意</h2>
+        <ul>
+          <li>インストールして、資料のタブとは別のウィンドウで開いてください（タブに埋もれず、止められにくくなります）。</li>
+          <li>Chrome・Edge のメモリセーバー（使っていないタブを止める機能）の「常にアクティブにするサイト」に、このアプリの URL（{window.location.origin}）を入れてください。</li>
+          <li>タイマー中はアプリを閉じないでください。最小化や、ほかのウィンドウの後ろに隠れるのは問題ありません。閉じても時間はずれずに進みますが、閉じている間は音が鳴りません。</li>
+        </ul>
+      </section>
     </>
   );
 }
@@ -195,5 +186,58 @@ function PresetSection() {
       </ul>
       {editing && <PresetDialog preset={editing.preset} canDelete={presets.length > 1} onClose={() => setEditing(null)} />}
     </section>
+  );
+}
+
+/* ---------- 音 ---------- */
+
+function VolumeSetting({ settings }: { settings: Settings }) {
+  const [draft, setDraft] = useState(settings.volume);
+  useEffect(() => setDraft(settings.volume), [settings.volume]);
+  const commit = (v: number) => {
+    if (v !== settings.volume) void updateSettings({ volume: v });
+  };
+  return (
+    <label className="setting-row">
+      <span>音量</span>
+      <span className="setting-input volume">
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={5}
+          value={draft}
+          onChange={e => setDraft(Number(e.target.value))}
+          onPointerUp={() => commit(draft)}
+          onKeyUp={() => commit(draft)}
+          onBlur={() => commit(draft)}
+          aria-label="音量"
+        />
+        <span className="volume-value">{draft}%</span>
+      </span>
+    </label>
+  );
+}
+
+function SoundSetting({ settings, field, label, hint }: { settings: Settings; field: 'workEndSound' | 'workStartSound'; label: string; hint: string }) {
+  return (
+    <label className="setting-row">
+      <span>
+        {label}
+        <small>{hint}</small>
+      </span>
+      <span className="setting-input">
+        <select value={settings[field]} onChange={e => void updateSettings({ [field]: e.target.value })}>
+          {SOUNDS.map(sound => (
+            <option key={sound.id} value={sound.id}>
+              {sound.name}
+            </option>
+          ))}
+        </select>
+        <button type="button" className="btn sm" onClick={() => void playSoundNow(settings[field], settings.volume)}>
+          試聴
+        </button>
+      </span>
+    </label>
   );
 }

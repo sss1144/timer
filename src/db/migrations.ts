@@ -52,3 +52,17 @@ export async function migrateToV3(tx: Transaction): Promise<void> {
   // 実行中のタイマー：消して、開始前の状態にする
   await tx.table('kv').delete('activeTimer');
 }
+
+/** v3 → v4：アラーム音を「作業終了の音」「作業開始の音」に分け、音量を足す（requirements.md 13 章） */
+export async function migrateToV4(tx: Transaction): Promise<void> {
+  const row = (await tx.table('kv').get('settings')) as { key: 'settings'; value: Record<string, unknown> } | undefined;
+  if (!row) return; // 設定を保存していなければ初期値のまま
+  const { alarmSound, ...rest } = row.value;
+  const next: Record<string, unknown> = { ...rest };
+  if (typeof alarmSound === 'string') {
+    next.workEndSound = alarmSound;
+    next.workStartSound = alarmSound;
+  }
+  if (typeof next.volume !== 'number') next.volume = 70;
+  await tx.table('kv').put({ key: 'settings', value: { ...DEFAULT_SETTINGS, ...next } });
+}

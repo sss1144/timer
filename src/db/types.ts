@@ -84,14 +84,17 @@ export type Session = {
   updatedAt: string;
 };
 
-export type AlarmSound = 'chime' | 'bell' | 'beep';
-
 export type Settings = {
   /** 次のブロックに自動で進む */
   autoContinue: boolean;
   stopwatchCheckMin: number;
   sound: boolean;
-  alarmSound: AlarmSound;
+  /** 作業ブロックが終わったときの音の ID（src/timer/sounds.ts の一覧のどれか） */
+  workEndSound: string;
+  /** 休憩ブロックが終わった（作業が始まる）ときの音の ID */
+  workStartSound: string;
+  /** 音量 0〜100 */
+  volume: number;
   notification: boolean;
   weekStart: 'mon' | 'sun';
   dayBoundaryHour: number;
@@ -103,7 +106,9 @@ export const DEFAULT_SETTINGS: Settings = {
   autoContinue: false,
   stopwatchCheckMin: 180,
   sound: true,
-  alarmSound: 'chime',
+  workEndSound: 'chime',
+  workStartSound: 'bell',
+  volume: 70,
   notification: false,
   weekStart: 'mon',
   dayBoundaryHour: 4,

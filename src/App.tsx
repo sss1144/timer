@@ -3,6 +3,7 @@ import { useRoute, type Route } from './lib/route';
 import { Nav } from './components/Nav';
 import { InstallHint } from './components/InstallHint';
 import { MiniTimer } from './components/MiniTimer';
+import { SoundUnlockBanner } from './components/SoundUnlockBanner';
 import { Toast } from './components/Toast';
 import { TimerRunner } from './timer/TimerRunner';
 import { TimerScreen } from './screens/TimerScreen';
@@ -32,6 +33,7 @@ export default function App() {
       <Nav current={route} />
       <main className="content">
         <InstallHint />
+        <SoundUnlockBanner />
         {route !== 'timer' && <MiniTimer />}
         <Screen />
       </main>

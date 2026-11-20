@@ -73,7 +73,9 @@ describe('データベースの移行（v2 → v3）', () => {
     const settings = (await db.kv.get('settings'))!.value as unknown as Record<string, unknown>;
     expect(settings).toEqual({
       ...DEFAULT_SETTINGS,
-      autoContinue: true, stopwatchCheckMin: 120, sound: false, alarmSound: 'bell', weekStart: 'sun',
+      autoContinue: true, stopwatchCheckMin: 120, sound: false, weekStart: 'sun',
+      // v4 の移行で、アラーム音は作業終了・作業開始の両方の音になり、音量 70 が足される
+      workEndSound: 'bell', workStartSound: 'bell', volume: 70,
       dayBoundaryHour: 4, lastPresetId: presets[0].id,
     });
 
@@ -102,6 +104,23 @@ describe('データベースの移行（v2 → v3）', () => {
     const db = new AppDB('fresh-v3');
     const presets = await db.presets.orderBy('createdAt').toArray();
     expect(presets.map(p => p.name)).toEqual(['2時間ブロック', 'ポモドーロ']);
+    db.close();
+  });
+});
+
+describe('データベースの移行（v3 → v4）', () => {
+  it('アラーム音を作業終了・作業開始の両方に入れ、音量 70 を足す。ほかの設定はそのまま', async () => {
+    const name = 'migration-v4';
+    const old = new Dexie(name);
+    old.version(3).stores({ ...V2_STORES, presets: 'id, createdAt' });
+    await old.open();
+    await old.table('kv').put({ key: 'settings', value: { ...DEFAULT_SETTINGS, workEndSound: undefined, workStartSound: undefined, volume: undefined, alarmSound: 'beep', dayBoundaryHour: 5 } });
+    old.close();
+
+    const db = new AppDB(name);
+    const s = (await db.kv.get('settings'))!.value as unknown as Record<string, unknown>;
+    expect(s).toMatchObject({ workEndSound: 'beep', workStartSound: 'beep', volume: 70, dayBoundaryHour: 5 });
+    expect('alarmSound' in s).toBe(false);
     db.close();
   });
 });

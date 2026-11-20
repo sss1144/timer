@@ -1,59 +1,80 @@
-/* アラーム音（音源ファイルを使わずブラウザで鳴らす）と通知 */
+/* 音（Web Audio API）と通知
+ * 音は「ブロックの開始・再開の時点で、終了時刻に鳴るよう予約する」。画面が隠れているとページのタイマーは
+ * 間引かれる（最大 1 分に 1 回）が、AudioContext の時刻で予約した音は時間どおりに鳴る。 */
 
-import type { AlarmSound } from '../db/types';
-
-export const ALARM_LABEL: Record<AlarmSound, string> = {
-  chime: 'チャイム',
-  bell: 'ベル',
-  beep: '電子音',
-};
+import { createStore } from '../lib/store';
+import { findSound } from './sounds';
 
 let ctx: AudioContext | null = null;
 
-/** ボタンを押したときに呼ぶ（iPhone・iPad は操作をきっかけにしないと音を出せないため） */
+/** 音を鳴らせる状態か（ブラウザの仕組みで、クリックやキー操作の前は止まっていることがある） */
+export const audioRunningStore = createStore(false);
+
+function updateState() {
+  audioRunningStore.set(ctx?.state === 'running');
+}
+
+/** クリック・キー操作のときに呼ぶ。AudioContext を作り、止まっていれば動かす */
 export function unlockAudio(): void {
   try {
     const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AC) return;
-    ctx ??= new AC();
-    if (ctx.state === 'suspended') void ctx.resume();
+    if (!ctx) {
+      ctx = new AC();
+      ctx.addEventListener('statechange', updateState);
+    }
+    if (ctx.state !== 'running') void ctx.resume().then(updateState, updateState);
+    updateState();
   } catch {
     ctx = null;
+    updateState();
   }
 }
 
-function tone(c: AudioContext, freq: number, start: number, dur: number, type: OscillatorType, volume: number) {
-  const osc = c.createOscillator();
-  const gain = c.createGain();
-  osc.type = type;
-  osc.frequency.value = freq;
-  gain.gain.setValueAtTime(0.0001, start);
-  gain.gain.exponentialRampToValueAtTime(volume, start + 0.015);
-  gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
-  osc.connect(gain).connect(c.destination);
-  osc.start(start);
-  osc.stop(start + dur + 0.05);
+/** 音量（0〜100）。70% で以前と同じ大きさ */
+const gainOf = (volume: number) => Math.max(0, Math.min(100, volume)) / 70;
+
+export type ScheduledSound = { cancel: () => void };
+
+/** atMs（Date.now() の時刻）に鳴るよう予約する。鳴らせない・もう過ぎている場合は null */
+export function scheduleSound(soundId: string, volume: number, atMs: number): ScheduledSound | null {
+  const c = ctx;
+  if (!c || c.state !== 'running' || volume <= 0) return null;
+  const when = c.currentTime + (atMs - Date.now()) / 1000;
+  if (when < c.currentTime - 0.5) return null;
+  const out = c.createGain();
+  out.gain.value = gainOf(volume);
+  out.connect(c.destination);
+  const sound = findSound(soundId);
+  const startAt = Math.max(when, c.currentTime + 0.02);
+  const nodes = sound.schedule(c, out, startAt);
+  return {
+    cancel: () => {
+      // もう鳴り始めた音は最後まで鳴らす（ブロックが終わった直後に予約し直しても途中で切れないように）
+      if (c.currentTime >= startAt - 0.01) return;
+      for (const n of nodes) {
+        try {
+          n.stop();
+        } catch {
+          /* もう止まっている */
+        }
+      }
+      out.disconnect();
+    },
+  };
 }
 
-export function playAlarm(kind: AlarmSound): void {
+/** すぐに鳴らす（試聴、止め忘れ確認） */
+export async function playSoundNow(soundId: string, volume: number): Promise<void> {
   unlockAudio();
-  const c = ctx;
-  if (!c) return;
-  const t0 = c.currentTime + 0.05;
-  for (let rep = 0; rep < 2; rep++) {
-    if (kind === 'chime') {
-      const base = t0 + rep * 1.2;
-      [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(c, f, base + i * 0.16, 0.7, 'sine', 0.22));
-    } else if (kind === 'bell') {
-      const base = t0 + rep * 1.6;
-      tone(c, 880, base, 1.5, 'sine', 0.25);
-      tone(c, 2217, base, 0.9, 'sine', 0.08);
-      tone(c, 1320, base + 0.02, 1.2, 'triangle', 0.06);
-    } else {
-      const base = t0 + rep * 0.9;
-      for (let i = 0; i < 3; i++) tone(c, 1000, base + i * 0.17, 0.11, 'square', 0.08);
+  if (ctx && ctx.state !== 'running') {
+    try {
+      await ctx.resume();
+    } catch {
+      return;
     }
   }
+  scheduleSound(soundId, volume, Date.now() + 50);
 }
 
 export function notificationSupported(): boolean {
