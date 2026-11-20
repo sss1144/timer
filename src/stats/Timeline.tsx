@@ -21,7 +21,7 @@ export function Timeline({ days, sessions, tasks, projects, boundaryHour }: Prop
   const seriesOf = makeSeriesResolver(tasks, projects);
 
   const multi = days.length > 1;
-  const L = multi ? 64 : 4;
+  const L = multi ? 76 : 4; // 日付ラベルの幅（等幅の文字のテーマでも重ならないように）
   const R = 8;
   const rowH = 30;
   const band = 16;

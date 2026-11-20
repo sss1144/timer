@@ -86,7 +86,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif;
+  font-family: var(--font-body, system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif);
   font-size: 15px;
   line-height: 1.6;
   -webkit-tap-highlight-color: transparent;
@@ -934,3 +934,25 @@ kbd { font: inherit; font-size: 11px; padding: 1px 6px; border: 1px solid var(--
   .mode-row .segmented { width: 100%; }
   .mode-row .segmented > button { flex: 1; padding: 7px 6px; }
 }
+
+/* ===== テーマ「地下遺跡（レトロ）」：古い端末の画面のような、角ばった見た目 ===== */
+:root[data-style="retro"] { --radius: 0px; --shadow: none; letter-spacing: 0.02em; }
+:root[data-style="retro"] *,
+:root[data-style="retro"] *::before,
+:root[data-style="retro"] *::after { border-radius: 0 !important; }
+:root[data-style="retro"] .card,
+:root[data-style="retro"] .tile,
+:root[data-style="retro"] .dialog,
+:root[data-style="retro"] .mini-timer { border: 1px solid var(--border); outline: 1px solid var(--border); outline-offset: 3px; }
+:root[data-style="retro"] .card h2::before,
+:root[data-style="retro"] .screen-header h1::before { content: "■ "; color: var(--accent); }
+:root[data-style="retro"] .dial-clock,
+:root[data-style="retro"] .mini-clock { text-shadow: 0 0 8px color-mix(in srgb, var(--accent) 55%, transparent); color: var(--accent); }
+:root[data-style="retro"] .nav { background: var(--surface); }
+:root[data-style="retro"] .nav-item[aria-current="page"] { outline: 1px solid var(--accent); }
+:root[data-style="retro"] .btn.primary { text-transform: uppercase; }
+:root[data-style="retro"] .dialog::backdrop { background: rgba(0, 0, 0, 0.7); }
+:root[data-style="retro"] .ring-fg { stroke-linecap: butt; }
+:root[data-style="retro"] .dial circle { stroke-width: 6; }
+.theme-note { margin: 0 0 6px; }
+.mode-note { margin-left: auto; }

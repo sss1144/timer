@@ -10,7 +10,7 @@ import type { Settings } from '../db/types';
 import { BackupSection } from '../components/BackupSection';
 import { notificationSupported, playSoundNow, requestNotificationPermission } from '../timer/alarm';
 import { SOUNDS } from '../timer/sounds';
-import { THEMES, type ColorMode } from '../lib/themes';
+import { findTheme, THEMES, type ColorMode } from '../lib/themes';
 import { showToast } from '../timer/ui';
 
 type NumberKey = 'stopwatchCheckMin';
@@ -250,11 +250,13 @@ function SoundSetting({ settings, field, label, hint }: { settings: Settings; fi
 const MODE_LABEL: Record<ColorMode, string> = { auto: '端末に合わせる', light: 'ライト', dark: 'ダーク' };
 
 function AppearanceSection({ settings }: { settings: Settings }) {
+  const current = findTheme(settings.theme);
   return (
     <section className="card settings">
       <h2>見た目</h2>
       <div className="setting-row mode-row">
         <span>表示モード</span>
+        {current.alwaysDark && <small className="muted mode-note">今のテーマは常に暗い表示です</small>}
         <div className="segmented" role="radiogroup" aria-label="表示モード">
           {(Object.keys(MODE_LABEL) as ColorMode[]).map(m => (
             <button key={m} type="button" role="radio" aria-checked={settings.colorMode === m} onClick={() => void updateSettings({ colorMode: m })}>
@@ -285,13 +287,14 @@ function AppearanceSection({ settings }: { settings: Settings }) {
                   <span className="theme-line" style={{ background: t.dark.accentSoft }} />
                 </span>
               </span>
-              <span className="theme-name">
+              <span className="theme-name" style={t.font ? { fontFamily: t.font } : undefined}>
                 {settings.theme === t.id && <span aria-hidden="true">✓ </span>}
                 {t.name}
               </span>
             </button>
           ))}
         </div>
+        {current.note && <p className="small theme-note">「{current.name}」：{current.note}</p>}
         <p className="muted small">ボタン・強調の色と背景の色合いが変わります。グラフのプロジェクトの色は変わりません。</p>
       </div>
     </section>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findTheme, isDarkMode, THEMES } from './themes';
+import { appearancePlan, findTheme, isDarkMode, THEMES } from './themes';
 
 /** WCAG のコントラスト比 */
 function contrast(a: string, b: string): number {
@@ -16,7 +16,9 @@ describe('テーマ', () => {
     expect(new Set(THEMES.map(t => t.id)).size).toBe(THEMES.length);
     for (const t of THEMES) {
       for (const c of [t.light, t.dark]) {
-        for (const v of [c.accent, c.accentSoft, c.accentContrast, c.bg, c.breakColor ?? '#000000']) expect(v).toMatch(/^#[0-9a-f]{6}$/);
+        for (const v of [c.accent, c.accentSoft, c.accentContrast, c.bg, c.breakColor, c.surface, c.surface2, c.text, c.muted, c.border]) {
+          if (v !== undefined) expect(v).toMatch(/^#[0-9a-f]{6}$/);
+        }
       }
     }
   });
@@ -27,11 +29,29 @@ describe('テーマ', () => {
     }
   });
 
-  it('強調の色が背景から見分けられる（3:1 以上）', () => {
+  it('強調の色が面から見分けられる（3:1 以上）', () => {
     for (const t of THEMES) {
-      expect(contrast(t.light.accent, '#ffffff'), t.name).toBeGreaterThanOrEqual(3);
-      expect(contrast(t.dark.accent, '#1a1d26'), t.name).toBeGreaterThanOrEqual(3);
+      if (!t.alwaysDark) expect(contrast(t.light.accent, t.light.surface ?? '#ffffff'), t.name).toBeGreaterThanOrEqual(3);
+      expect(contrast(t.dark.accent, t.dark.surface ?? '#1a1d26'), t.name).toBeGreaterThanOrEqual(3);
     }
+  });
+
+  it('文字の色を変えるテーマは、文字が面の上で読める（本文 4.5:1、補足 3:1 以上）', () => {
+    for (const t of THEMES) {
+      for (const c of [t.light, t.dark]) {
+        if (c.text && c.surface) expect(contrast(c.text, c.surface), t.name).toBeGreaterThanOrEqual(4.5);
+        if (c.muted && c.surface) expect(contrast(c.muted, c.surface), t.name).toBeGreaterThanOrEqual(3);
+        if (c.breakColor && c.surface) expect(contrast(c.breakColor, c.surface), t.name).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+
+  it('常に暗いテーマは、表示モードがライトでも暗い表示', () => {
+    const ruins = THEMES.find(t => t.alwaysDark)!;
+    expect(isDarkMode('light', false, ruins)).toBe(true);
+    expect(appearancePlan('light', ruins.id).dataMode).toBe('dark');
+    expect(appearancePlan('auto', 'blue').dataMode).toBeNull();
+    expect(appearancePlan('light', 'blue').dataMode).toBe('light');
   });
 
   it('知らない ID は標準のテーマ', () => {
